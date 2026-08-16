@@ -1,0 +1,22 @@
+[package]
+name = "accreta"
+version = "0.1.0"
+edition = "2024"
+description = "A reusable mergeable-state aggregation framework, applied to time-series rollups"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/stoyantc/accreta-rs"
+readme = "README.md"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+thiserror = "2.0.20"
+
+[dev-dependencies]
+
+[[example]]
+name = "basic_usage"
+path = "examples/basic_usage.rs"
+
+[[example]]
+name = "custom_aggregate"
+path = "examples/custom_aggregate.rs"
