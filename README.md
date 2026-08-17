@@ -1,19 +1,20 @@
 # accreta
 
-A **mergeable-state aggregation framework** for Rust, with hierarchical time-series rollups as
-its first application.
+*From the Latin* accrescere*, "to grow."*
+
+A Rust **engine for mergeable-state aggregation** — pluggable aggregates via a small
+trait-based framework — with hierarchical time-series rollups as its first application.
 
 > **Note:** this README assumes the package is published as `accreta` (matching the imports used
 > in `examples/`) and defaults to a dual MIT/Apache-2.0 license, the Rust ecosystem convention —
 > adjust the [License](#license) section and the version number below if that's not accurate.
 
-## The core idea
+## Why accreta
 
 Instead of re-scanning raw data every time you want a coarser summary (hourly from minutes,
-daily from hours, ...), every aggregate is represented as a `Monoid`: a state that can be built
-incrementally from samples (`Aggregator`) and combined with another state of the same kind
-(`Monoid::merge`) to get the state you'd have gotten by seeing both sets of data at once.
-Rollups then become pure state merges:
+daily from hours, ...), accreta keeps every summary in a form that can be combined with another
+summary of the same kind to get the answer you'd have gotten by seeing both at once. Rollups
+become cheap merges of existing state:
 
 ```text
 minute buckets --merge--> hour buckets --merge--> day buckets --merge--> ... --> year buckets
@@ -22,24 +23,6 @@ minute buckets --merge--> hour buckets --merge--> day buckets --merge--> ... -->
 Raw samples are only ever folded into the finest (`Minute`) buckets. Every coarser bucket is
 derived *exclusively* by merging finer buckets — the engine never reprocesses raw data to
 compute a rollup, and `rollup()` is idempotent to call as often as you like.
-
-## Features
-
-- **Hierarchical rollups** — a fixed `Minute -> Hour -> Day -> Week -> Month -> Year` bucket
-  hierarchy, each level derived by merging the level below.
-- **Pluggable aggregates** — `Sum`, `Count`, `Min`, `Max`, and `Average` ship built in; adding a
-  new one (e.g. running variance) is a matter of implementing `Monoid` + `Aggregator` for your
-  own type and registering it on a `Schema` — nothing in `engine`, `bucket`, or `aggregate_set`
-  needs to change. See [`examples/custom_aggregate.rs`](examples/custom_aggregate.rs).
-- **Dimension-based grouping** — up to 64 dimensions per schema. Every bucket stores the *full*
-  dimension key, so a query can project onto any `GROUP BY` combination later without
-  materializing every possible projection at ingestion time.
-- **Type-safe measures** — `i64`, `u64`, and `f64` measure values are validated against the
-  schema at ingestion time.
-- **Bounded memory** — an optional `Retention` policy plus an explicit `prune()` step for
-  long-running ingestion; rollups themselves never delete anything.
-- **No hot-path allocation** — aggregate states are updated and merged in place behind a
-  `Box<dyn ErasedState>`, so folding a sample into an existing bucket allocates nothing.
 
 ## Installation
 
@@ -57,7 +40,8 @@ use accreta::bucket::BucketLevel;
 use accreta::engine::Engine;
 use chrono::{Duration, TimeZone, Utc};
 
-// 1. Describe the schema: dimensions to group by, and the aggregates each measure tracks.
+// 1. Describe what you're tracking: dimensions to group by, and which
+//    built-in aggregates each measure should keep.
 let mut builder = Schema::builder();
 builder
     .dimension("browser")
@@ -71,17 +55,18 @@ let schema = builder.build().unwrap();
 
 let mut engine = Engine::new(schema);
 
-// 2. Ingest raw samples — each one only ever touches a minute-level bucket.
+// 2. Feed in raw samples as they arrive.
 let t0 = Utc.with_ymd_and_hms(2026, 3, 15, 10, 5, 0).unwrap();
 engine.ingest(t0, vec![12.0], vec!["Firefox"]).unwrap();
 engine
     .ingest(t0 + Duration::minutes(1), vec![8.0], vec!["Firefox"])
     .unwrap();
 
-// 3. Roll up. This only ever merges bucket states — it never re-reads a sample.
+// 3. Roll up whenever you want coarser buckets. Cheap — it only merges
+//    what's already there, it never re-reads your samples.
 engine.rollup();
 
-// 4. Read aggregates back at whatever granularity you need.
+// 4. Read back at whatever granularity you need.
 let hour_start = BucketLevel::Hour.truncate(t0);
 let hour = engine.bucket(BucketLevel::Hour, hour_start).unwrap();
 let (_, sets) = hour.groups().next().unwrap();
@@ -91,8 +76,12 @@ assert_eq!(visits.get::<Sum<f64>>().unwrap().value(), 20.0);
 assert_eq!(visits.get::<Count>().unwrap().value(), 2);
 ```
 
-Ad-hoc range queries merge whichever buckets already exist at a given level without storing
-anything new:
+That's the whole workflow: describe your measures, ingest, roll up, read. You don't need to know
+anything about how the merging works under the hood to use the built-in aggregates
+(`Sum`, `Count`, `Min`, `Max`, `Average`).
+
+You can also query a time range directly, merging whichever buckets already exist at a level
+without storing anything new:
 
 ```rust,ignore
 let totals = engine
@@ -105,11 +94,29 @@ let grouped = engine
 See [`examples/basic_usage.rs`](examples/basic_usage.rs) for the complete walkthrough, including
 ad-hoc queries and retention.
 
+## Features
+
+- **Hierarchical rollups** — a fixed `Minute -> Hour -> Day -> Week -> Month -> Year` bucket
+  hierarchy, each level derived by merging the level below.
+- **Pluggable aggregates** — `Sum`, `Count`, `Min`, `Max`, and `Average` ship built in; you can
+  add your own (e.g. running variance) without changing anything in the engine — see
+  [Adding a custom aggregate](#adding-a-custom-aggregate) below.
+- **Dimension-based grouping** — up to 64 dimensions per schema. Every bucket stores the *full*
+  dimension key, so you can query any `GROUP BY` combination later without precomputing every
+  possible projection up front.
+- **Type-safe measures** — `i64`, `u64`, and `f64` measure values are checked against the schema
+  when you ingest them.
+- **Bounded memory** — an optional `Retention` policy plus an explicit `prune()` step for
+  long-running ingestion; rollups themselves never delete anything.
+- **No hot-path allocation** — folding a sample into an existing bucket allocates nothing.
+
 ## Adding a custom aggregate
 
-Nothing in `engine`, `bucket`, or `aggregate_set` needs to change to add a new aggregate.
-Implement `Monoid` (an identity value plus a merge function) and `Aggregator` (how one sample
-folds into that state), then register it on a measure exactly like a built-in:
+If the built-ins don't cover what you need, you can add your own. Under the hood, every
+aggregate is a **monoid**: a state with an identity value and a way to merge two states of the
+same kind together. Implement that (`Monoid`), implement how a single sample updates the state
+(`Aggregator`), and register it on a measure exactly like a built-in — nothing in `engine`,
+`bucket`, or `aggregate_set` needs to change:
 
 ```rust,ignore
 struct Variance<T> { /* ... */ }
