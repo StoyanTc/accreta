@@ -55,6 +55,17 @@ impl BucketLevel {
         }
     }
 
+    pub fn rollup_targets(self) -> &'static [BucketLevel] {
+        match self {
+            BucketLevel::Minute => &[BucketLevel::Hour],
+            BucketLevel::Hour => &[BucketLevel::Day],
+            BucketLevel::Day => &[BucketLevel::Week, BucketLevel::Month],
+            BucketLevel::Week => &[],
+            BucketLevel::Month => &[BucketLevel::Year],
+            BucketLevel::Year => &[],
+        }
+    }
+
     /// Truncate a timestamp down to the start of the bucket at this level that contains it.
     ///
     /// Weeks start on Monday (ISO 8601).

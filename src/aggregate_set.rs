@@ -2,12 +2,12 @@
 
 use std::sync::Arc;
 
+use crate::DimensionId;
 use crate::aggregator::Aggregator;
 use crate::erased::{AggregateFactory, ErasedState};
 use crate::errors::SchemaError;
 use crate::measures::{MeasureDefinition, MeasureId, MeasureNumber};
 use crate::sample::Sample;
-use crate::DimensionId;
 
 /// Defines a named dimension in the schema.
 #[derive(Debug, Clone)]
@@ -31,7 +31,7 @@ pub struct Schema {
 }
 
 impl Schema {
-    /// A builder-style schema you can grow with [`SchemaBuilder::with`].
+    /// A builder-style schema you can grow with [`SchemaBuilder::dimension`] and [`SchemaBuilder::measure`].
     pub fn builder() -> SchemaBuilder {
         SchemaBuilder::default()
     }
@@ -189,8 +189,7 @@ where
     ///
     /// # Panics
     ///
-    /// Panics if another aggregate is already registered under `A::NAME` for
-    /// this measure — see [`Self::register`] for why.
+    /// Panics if another aggregate is already registered internally under `A::NAME` for
     pub fn with<A>(&mut self) -> &mut Self
     where
         A: Aggregator<Input = T> + Clone + 'static,
@@ -202,8 +201,7 @@ where
     ///
     /// # Panics
     ///
-    /// Panics if another aggregate is already registered under `A::NAME` for
-    /// this measure — see [`Self::register`] for why.
+    /// Panics if another aggregate is already registered internally under `A::NAME`
     pub fn with_any<A>(&mut self) -> &mut Self
     where
         A: Aggregator<Input = ()> + Clone + 'static,
@@ -358,12 +356,12 @@ impl AggregateSet {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::DimensionValues;
     use crate::aggregates::{Count, Sum};
     use crate::dimensions::DimensionDictionaries;
     use crate::measures::MeasureValue;
     use crate::measures::MeasureValues;
     use crate::sample::Sample;
-    use crate::DimensionValues;
     use chrono::Utc;
 
     fn schema() -> Schema {

@@ -1,4 +1,4 @@
-//! # monoid
+//! # accreta
 //!
 //! A reusable **mergeable-state aggregation framework**, with hierarchical time-series rollups
 //! as its first application.
@@ -37,12 +37,12 @@
 //! ## Adding a new aggregate
 //!
 //! Nothing above [`aggregates`] needs to change. Implement [`Monoid`] (identity
-//! + merge) and [`Aggregator`] (fold in one sample) for a new state type,
+//! and merge) and [`Aggregator`] (fold in one sample) for a new state type,
 //! then register it on a measure in a [`Schema`] alongside the built-ins:
 //!
 //! ```
-//! use monoid::aggregate_set::Schema;
-//! use monoid::aggregates::{Count, Sum};
+//! use accreta::aggregate_set::Schema;
+//! use accreta::aggregates::{Count, Sum};
 //!
 //! let mut builder = Schema::builder();
 //! builder
@@ -61,11 +61,11 @@
 //!
 //! ```
 //! use chrono::{TimeZone, Utc};
-//! use monoid::aggregate_set::Schema;
-//! use monoid::aggregates::{Count, Sum};
-//! use monoid::bucket::BucketLevel;
-//! use monoid::engine::Engine;
-//! use monoid::measures::MeasureId;
+//! use accreta::aggregate_set::Schema;
+//! use accreta::aggregates::{Count, Sum};
+//! use accreta::bucket::BucketLevel;
+//! use accreta::engine::Engine;
+//! use accreta::measures::MeasureId;
 //!
 //! let mut builder = Schema::builder();
 //! builder

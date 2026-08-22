@@ -200,27 +200,25 @@ impl Engine {
     /// all, only merges the current [`Bucket`] states.
     pub fn rollup(&mut self) {
         for level in BucketLevel::ALL {
-            let Some(parent_level) = level.parent() else {
-                continue;
-            };
+            for parent_level in level.rollup_targets() {
+                let children = &self.buckets[&level];
+                let mut parents: BTreeMap<DateTime<Utc>, Bucket> = BTreeMap::new();
 
-            let children = &self.buckets[&level];
-            let mut parents: BTreeMap<DateTime<Utc>, Bucket> = BTreeMap::new();
+                for child in children.values() {
+                    let parent_start = parent_level.truncate(child.start());
 
-            for child in children.values() {
-                let parent_start = parent_level.truncate(child.start());
+                    parents
+                        .entry(parent_start)
+                        .and_modify(|parent| parent.merge(child))
+                        .or_insert_with(|| {
+                            let mut parent = Bucket::new(*parent_level, parent_start);
+                            parent.merge(child);
+                            parent
+                        });
+                }
 
-                parents
-                    .entry(parent_start)
-                    .and_modify(|parent| parent.merge(child))
-                    .or_insert_with(|| {
-                        let mut parent = Bucket::new(parent_level, parent_start);
-                        parent.merge(child);
-                        parent
-                    });
+                self.buckets.insert(*parent_level, parents);
             }
-
-            self.buckets.insert(parent_level, parents);
         }
     }
 

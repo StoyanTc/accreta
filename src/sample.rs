@@ -2,7 +2,7 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::{measures::MeasureValues, DimensionValues};
+use crate::{DimensionValues, measures::MeasureValues};
 
 /// A single incoming time-series measurement.
 ///
