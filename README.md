@@ -14,11 +14,21 @@ trait-based framework — with hierarchical time-series rollups as its first app
 Instead of re-scanning raw data every time you want a coarser summary (hourly from minutes,
 daily from hours, ...), accreta keeps every summary in a form that can be combined with another
 summary of the same kind to get the answer you'd have gotten by seeing both at once. Rollups
-become cheap merges of existing state:
+become cheap merges of existing state.
+
+The hierarchy is **not** a straight chain, though — `day` buckets roll up directly into *both*
+`week` and `month`, and `week` is a dead end that never rolls up any further (only `month` feeds
+`year`):
 
 ```text
-minute buckets --merge--> hour buckets --merge--> day buckets --merge--> ... --> year buckets
+                                                         +--merge--> week buckets   (dead end)
+                                                         |
+minute --merge--> hour --merge--> day buckets -----------+
+ buckets           buckets                               |
+                                                         +--merge--> month buckets --merge--> year buckets
 ```
+
+See `BucketLevel::rollup_targets` for the exact, authoritative fan-out at each level.
 
 Raw samples are only ever folded into the finest (`Minute`) buckets. Every coarser bucket is
 derived *exclusively* by merging finer buckets — the engine never reprocesses raw data to
@@ -96,8 +106,10 @@ ad-hoc queries and retention.
 
 ## Features
 
-- **Hierarchical rollups** — a fixed `Minute -> Hour -> Day -> Week -> Month -> Year` bucket
-  hierarchy, each level derived by merging the level below.
+- **Hierarchical rollups** — a fixed `Minute -> Hour -> Day -> Week -> Month -> Year` set of
+  levels, but the rollup path between them fans out rather than chaining straight through: `day`
+  feeds both `week` and `month` directly, `week` never rolls up any further, and `month` feeds
+  `year`. See `BucketLevel::rollup_targets` for the exact fan-out at each level.
 - **Pluggable aggregates** — `Sum`, `Count`, `Min`, `Max`, and `Average` ship built in; you can
   add your own (e.g. running variance) without changing anything in the engine — see
   [Adding a custom aggregate](#adding-a-custom-aggregate) below.

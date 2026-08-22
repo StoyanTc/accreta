@@ -10,15 +10,37 @@
 //! state that can be built incrementally from samples ([`Aggregator`])
 //! and combined with another state of the same kind
 //! ([`Monoid::merge`]) to get the state you'd have gotten by seeing both
-//! sets of data at once. Rollups then become pure state merges:
+//! sets of data at once. Rollups then become pure state merges.
+//!
+//! The hierarchy is **not** a straight chain — `day` buckets roll up directly into *both*
+//! `week` and `month`, and `week` is a dead end that never rolls up any further (only `month`
+//! feeds `year`):
 //!
 //! ```text
-//! minute buckets --merge--> hour buckets --merge--> day buckets --merge--> ... --> year buckets
+//!                                                          +--merge--> week buckets   (dead end)
+//!                                                          |
+//! minute --merge--> hour --merge--> day buckets -----------+
+//!  buckets           buckets                                |
+//!                                                            +--merge--> month buckets --merge--> year buckets
 //! ```
+//!
+//! See [`BucketLevel::rollup_targets`] for the exact, authoritative fan-out at each level, and
+//! [`BucketLevel::parent`] for the (different!) notion of which level a bucket's *default*
+//! parent is — the two aren't the same thing for `day`, so don't assume `parent()` tells you
+//! everywhere a level's data ends up.
 //!
 //! Raw [`Sample`]s are only ever folded into the finest ([`BucketLevel::Minute`])
 //! buckets. Every coarser bucket is derived *exclusively* by merging finer buckets — the engine
 //! never reprocesses raw data to compute a rollup.
+//!
+//! ## Dimension keys and GROUP BY
+//!
+//! A [`Bucket`] stores the **full** dimension key for every group it holds, not just the subset
+//! a particular query cares about. This means a query can later group by an arbitrary subset of
+//! the schema's dimensions — via [`crate::dimensions::DimensionKey::project`] — without
+//! re-aggregating raw data or materializing every possible projection up front. The cost of this
+//! flexibility is paid once, at ingest time, by however many distinct full-dimension
+//! combinations actually occur in your data.
 //!
 //! ## Module map
 //!
@@ -58,6 +80,12 @@
 //! building a derived aggregate out of two existing ones.
 //!
 //! ## Quick start
+//!
+//! `Schema::builder().build()` and `Engine::ingest` return `Result`s rather than panicking — a
+//! schema with no registered dimension or measure fails to build with
+//! [`crate::errors::SchemaError::NoDimensions`] / [`crate::errors::SchemaError::NoMeasures`]
+//! respectively. The example below `.unwrap()`s throughout for brevity; production code should
+//! handle these explicitly.
 //!
 //! ```
 //! use chrono::{TimeZone, Utc};

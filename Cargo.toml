@@ -12,6 +12,11 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 thiserror = "2.0.20"
 
 [dev-dependencies]
+criterion = "0.8.2"
+
+[[bench]]
+name = "engine_bench"
+harness = false
 
 [[example]]
 name = "basic_usage"
