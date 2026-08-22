@@ -202,8 +202,12 @@ fn day_rolls_up_directly_into_both_week_and_month() {
 
     // 2026-03-02 is a Monday, so week-start and month-start diverge.
     let day = Utc.with_ymd_and_hms(2026, 3, 2, 0, 0, 0).unwrap();
-    engine.ingest(day + Duration::hours(3), [4.0], ["server-a"]).unwrap();
-    engine.ingest(day + Duration::hours(10), [6.0], ["server-a"]).unwrap();
+    engine
+        .ingest(day + Duration::hours(3), [4.0], ["server-a"])
+        .unwrap();
+    engine
+        .ingest(day + Duration::hours(10), [6.0], ["server-a"])
+        .unwrap();
 
     engine.rollup();
 
@@ -234,7 +238,9 @@ fn year_bucket_is_populated_via_month_not_week() {
     let mut engine = Engine::new(schema);
 
     let day = Utc.with_ymd_and_hms(2026, 6, 10, 0, 0, 0).unwrap();
-    engine.ingest(day + Duration::hours(2), [7.0], ["server-a"]).unwrap();
+    engine
+        .ingest(day + Duration::hours(2), [7.0], ["server-a"])
+        .unwrap();
     engine.rollup();
 
     let year = engine
@@ -258,7 +264,9 @@ fn month_and_year_rollup_handle_december_rollover_correctly() {
     let mut engine = Engine::new(schema);
 
     let dec_day = Utc.with_ymd_and_hms(2026, 12, 20, 0, 0, 0).unwrap();
-    engine.ingest(dec_day + Duration::hours(5), [42.0], ["server-a"]).unwrap();
+    engine
+        .ingest(dec_day + Duration::hours(5), [42.0], ["server-a"])
+        .unwrap();
     engine.rollup();
 
     let month = engine
