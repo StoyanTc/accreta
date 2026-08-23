@@ -2,10 +2,12 @@
 name = "accreta"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
 description = "A reusable mergeable-state aggregation framework, applied to time-series rollups"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/stoyantc/accreta-rs"
 readme = "README.md"
+keywords = ["aggregation", "time-series", "rollup", "monoid", "metrics"]
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }

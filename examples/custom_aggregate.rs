@@ -65,7 +65,7 @@ where
             n: u64::default(),
             mean: f64::default(),
             m2: f64::default(),
-            _marker: std::marker::PhantomData::default(),
+            _marker: std::marker::PhantomData,
         }
     }
 
@@ -86,7 +86,7 @@ where
             n,
             mean,
             m2,
-            _marker: std::marker::PhantomData::default(),
+            _marker: std::marker::PhantomData,
         }
     }
 }
@@ -111,7 +111,7 @@ where
             n,
             mean,
             m2,
-            _marker: std::marker::PhantomData::default(),
+            _marker: std::marker::PhantomData,
         }
     }
 }

@@ -20,8 +20,8 @@
 //!                                                          +--merge--> week buckets   (dead end)
 //!                                                          |
 //! minute --merge--> hour --merge--> day buckets -----------+
-//!  buckets           buckets                                |
-//!                                                            +--merge--> month buckets --merge--> year buckets
+//!  buckets           buckets                               |
+//!                                                          +--merge--> month buckets --merge--> year buckets
 //! ```
 //!
 //! See [`BucketLevel::rollup_targets`] for the exact, authoritative fan-out at each level, and
