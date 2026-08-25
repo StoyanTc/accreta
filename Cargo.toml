@@ -1,0 +1,20 @@
+[package]
+name = "accreta-ffi"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+# cdylib for the shared object (.so), staticlib in case you ever want to
+# statically link it (e.g. into a Windows .exe later), rlib so it can also
+# be used/tested from Rust itself.
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+accreta = "0.1.0"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+[build-dependencies]
+cbindgen = "0.29.4"
+
+[profile.release]
+panic = "abort"   # belt-and-suspenders alongside catch_unwind (see error.rs)
