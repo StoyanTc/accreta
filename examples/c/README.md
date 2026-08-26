@@ -1,126 +1,273 @@
 # C example
 
-This directory contains a small C program that exercises the public
+This directory contains a small C application that exercises the public
 `accreta-ffi` C ABI.
 
-The generated public header is expected at:
-
-    ../../include/accreta_ffi.h
-
-The example demonstrates:
-
-- creating a schema builder;
-- registering dimensions;
-- registering typed measures and aggregate kinds;
-- building a schema;
-- creating an engine;
-- ingesting samples;
-- rolling up data;
-- querying an hourly aggregate;
-- reading sum, count, and average;
-- executing a grouped query;
-- iterating grouped results;
-- releasing all owned FFI handles.
-
-## Directory
-
-    examples/c/
-    ├── Makefile
-    ├── README.md
-    └── example.c
+The example is intentionally built as a normal C consumer of the generated
+header and native Rust library. It does not compile any Rust source itself.
 
 ## Prerequisites
 
 You need:
 
-- a working Rust toolchain;
-- the `accreta-ffi` crate built in debug mode;
+- a Rust toolchain;
 - a C compiler;
-- the generated `include/accreta_ffi.h`.
+- CMake 3.15 or newer.
 
-From the root of `accreta-ffi`, first build the library:
+The C compiler can be GCC, Clang, Apple Clang, MSVC, or another compiler
+supported by your CMake installation.
 
-    cargo build
+## Build the Rust library first
 
-This should create the platform-specific library under:
+From the `accreta-ffi` repository root:
 
-    target/debug/
+```bash
+cargo build --release
+```
 
-## Build the example
+This produces the native library under:
 
-From this directory:
+```text
+target/release/
+```
 
-    make
+and generates the C header:
 
-or:
+```text
+include/accreta_ffi.h
+```
 
-    make build
+The C example expects these files to exist before CMake configuration.
 
-## Run
+## Build with CMake
 
-    make run
+From the repository root:
 
-On Linux the Makefile sets `LD_LIBRARY_PATH` so the dynamic linker can
-find the debug FFI library in `target/debug`.
+```bash
+cmake -S examples/c -B examples/c/build
+cmake --build examples/c/build --config Release
+```
 
-On macOS the example uses the library search path supplied at link time.
-If the library is built as a dynamic library and the runtime loader needs
-an explicit path in your environment, set it accordingly.
+CMake uses the shared `accreta-ffi` library by default.
 
-On Windows, use the generated import/library files and ensure the DLL is
-available on `PATH` when running the example.
+### Linux
 
-## What the example does
+Run:
 
-The schema contains two dimensions:
+```bash
+./examples/c/build/accreta_c_example
+```
 
-    host
-    region
+The CMake configuration sets the runtime search path so the example can find
+the repository-local `libaccreta_ffi.so`.
 
-and two measures:
+### macOS
 
-    cpu      f64    sum, count, min, max, average
-    requests u64    sum, count
+Run:
 
-Three samples are ingested:
+```bash
+./examples/c/build/accreta_c_example
+```
 
-    server-01 / eu-west    cpu=20    requests=100
-    server-01 / eu-west    cpu=40    requests=200
-    server-02 / eu-west    cpu=60    requests=300
+The CMake configuration sets the runtime search path so the example can find
+the repository-local `libaccreta_ffi.dylib`.
 
-The example then queries the hourly CPU aggregate and prints:
+### Windows
 
-    CPU sum
-    CPU count
-    CPU average
+With Visual Studio or another multi-configuration generator:
 
-It also performs a grouped query by `host`. Dimension zero is `host`, so
-the grouping mask uses bit zero:
+```powershell
+cmake -S examples/c -B examples/c/build
+cmake --build examples/c/build --config Release
+```
 
-    1ULL << 0
+The generated `accreta_ffi.dll` is copied beside the executable, so the
+example can be run without setting `PATH` manually:
 
-Grouped query results expose dimension value IDs. The current example
-prints those IDs rather than resolving them back to their original
-dictionary strings.
+```powershell
+.\examples\c\build\Release\accreta_c_example.exe
+```
 
-## Ownership
+With a single-configuration generator, the executable location depends on the
+generator's normal CMake layout.
 
-The example intentionally demonstrates the ownership rules of the C ABI.
+## Static linking
 
-`accreta_schema_builder_build()` consumes the builder.
+The example can also link against the Rust static library.
 
-The schema can be released after creating the engine because the engine
-keeps its own schema reference.
+Configure with:
 
-Query results are owned by the caller and must be released with their
-corresponding `*_free()` functions.
+```bash
+cmake -S examples/c -B examples/c/build-static \
+    -DACCRETA_LINK_STATIC=ON
+```
 
-Grouped query iteration returns owned dimension-key and aggregate-set
-handles. Each pair is released after it has been processed, and the
-cursor itself is released after iteration completes.
+Then build:
 
-## Note
+```bash
+cmake --build examples/c/build-static --config Release
+```
 
-The example includes the generated public header rather than duplicating
-any ABI declarations. If the generated header changes enum or field names,
-the example should be updated to match that generated API.
+The static library is expected at:
+
+```text
+target/release/libaccreta_ffi.a
+```
+
+on Unix-like systems and:
+
+```text
+target/release/accreta_ffi.lib
+```
+
+on Windows.
+
+Static linking can require additional platform/system libraries, especially on
+Windows. The supplied CMake configuration adds the Windows system libraries
+needed by the Rust static library for the supported MSVC setup.
+
+## What the example demonstrates
+
+The example follows the normal C ABI usage pattern:
+
+1. Create a schema builder.
+2. Add dimensions.
+3. Add measures and aggregate kinds.
+4. Build the schema.
+5. Create an engine from the schema.
+6. Ingest timestamped measurements.
+7. Roll up the ingested data.
+8. Execute an ungrouped range query.
+9. Read aggregate values.
+10. Execute a grouped range query.
+11. Iterate grouped results.
+12. Release all returned ABI objects.
+
+It also demonstrates the error boundary through
+`accreta_last_error_message()`.
+
+## Important ABI details demonstrated by the example
+
+### Measure and dimension order
+
+Dimensions are supplied in the same order in which they were registered in the
+schema.
+
+Measures are supplied in measure-ID order. Registration order determines the
+measure ID.
+
+For example:
+
+```text
+dimension 0 = host
+dimension 1 = region
+
+measure 0 = cpu
+measure 1 = requests
+```
+
+### Query ranges
+
+Range queries use inclusive boundaries:
+
+```text
+[start, end]
+```
+
+Timestamps are Unix timestamps in milliseconds.
+
+### Grouping
+
+Grouped queries use a dimension bit mask.
+
+For example, if `host` is dimension 0:
+
+```c
+1ULL << 0
+```
+
+groups by host.
+
+If `region` is dimension 1:
+
+```c
+1ULL << 1
+```
+
+groups by region.
+
+Both dimensions can be selected with:
+
+```c
+(1ULL << 0) | (1ULL << 1)
+```
+
+### Dimension value IDs
+
+Grouped results expose numeric dimension value IDs.
+
+The current C ABI does not provide a reverse lookup from a value ID to the
+original dimension string.
+
+### Ownership
+
+Objects returned by the ABI must be released using their corresponding
+`*_free` function.
+
+In particular:
+
+```text
+AccretaSchema              -> accreta_schema_free()
+AccretaEngine              -> accreta_engine_free()
+AccretaAggregateSet        -> accreta_aggregate_set_free()
+AccretaGroupedQueryCursor  -> accreta_grouped_query_cursor_free()
+AccretaDimensionKey        -> accreta_dimension_key_free()
+```
+
+Each key and aggregate set returned by a grouped-query cursor iteration is
+independently allocated and must be released after use.
+
+The engine clones the schema, so the schema handle can be released immediately
+after creating the engine.
+
+A successful schema build takes care of releasing the builder.
+
+## Generated header
+
+`accreta_ffi.h` is generated automatically by the Rust build using `build.rs`
+and `cbindgen.toml`.
+
+Do not edit the generated header manually.
+
+The header contains `extern "C"` guards and can therefore be included from both
+C and C++.
+
+## Cleaning the build
+
+To remove the CMake build directory:
+
+```bash
+rm -rf examples/c/build
+```
+
+On Windows, remove the directory using the normal Windows file-management
+tools or PowerShell:
+
+```powershell
+Remove-Item -Recurse -Force examples\c\build
+```
+
+The CMake build directory is separate from Cargo's `target` directory.
+
+## Source files
+
+```text
+examples/c/
+├── CMakeLists.txt
+├── README.md
+└── example.c
+```
+
+`example.c` is the actual C consumer. `CMakeLists.txt` only supplies the
+platform-specific build and linking configuration needed to compile it against
+the Rust-produced library.
