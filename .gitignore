@@ -4,4 +4,4 @@
 *.swp
 .DS_Store
 /include/
-example
+/examples/c/build/
