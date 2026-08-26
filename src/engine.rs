@@ -34,8 +34,16 @@ pub extern "C" fn accreta_retention_new() -> *mut AccretaRetention {
 
 /// Configures `retention` to keep buckets at `level` for at most `max_age_ms` past the newest
 /// bucket currently stored at that level. Mutates `retention` in place.
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_retention_keep(
+pub unsafe extern "C" fn accreta_retention_keep(
     retention: *mut AccretaRetention,
     level: AccretaBucketLevel,
     max_age_ms: i64,
@@ -60,8 +68,16 @@ pub extern "C" fn accreta_retention_keep(
 /// Frees a retention handle. Safe to free immediately after passing it to
 /// [`accreta_engine_new_with_retention`] — the engine copies the policy (it's a small `Copy`
 /// struct internally).
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_retention_free(retention: *mut AccretaRetention) {
+pub unsafe extern "C" fn accreta_retention_free(retention: *mut AccretaRetention) {
     ffi_guard((), || {
         if !retention.is_null() {
             drop(unsafe { Box::from_raw(retention) });
@@ -79,8 +95,16 @@ pub struct AccretaEngine(pub(crate) Engine);
 /// Creates a new engine tracking `schema`'s aggregates, with no retention limit. `schema` is
 /// borrowed and cloned internally (cheap — it's reference-counted); free your `schema` handle
 /// independently whenever you're done with it.
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_engine_new(schema: *const AccretaSchema) -> *mut AccretaEngine {
+pub unsafe extern "C" fn accreta_engine_new(schema: *const AccretaSchema) -> *mut AccretaEngine {
     ffi_guard(std::ptr::null_mut(), || {
         let Some(schema) = (unsafe { schema.as_ref() }) else {
             return std::ptr::null_mut();
@@ -91,8 +115,16 @@ pub extern "C" fn accreta_engine_new(schema: *const AccretaSchema) -> *mut Accre
 
 /// Like [`accreta_engine_new`], but discarding buckets per `retention` whenever
 /// [`accreta_engine_prune`] is called.
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_engine_new_with_retention(
+pub unsafe extern "C" fn accreta_engine_new_with_retention(
     schema: *const AccretaSchema,
     retention: *const AccretaRetention,
 ) -> *mut AccretaEngine {
@@ -111,8 +143,16 @@ pub extern "C" fn accreta_engine_new_with_retention(
 
 /// Frees an engine handle. Does not affect any [`AccretaBucket`] / [`AccretaAggregateSet`]
 /// snapshots you already pulled out of it — those are independently owned.
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_engine_free(engine: *mut AccretaEngine) {
+pub unsafe extern "C" fn accreta_engine_free(engine: *mut AccretaEngine) {
     ffi_guard((), || {
         if !engine.is_null() {
             drop(unsafe { Box::from_raw(engine) });
@@ -127,8 +167,16 @@ pub extern "C" fn accreta_engine_free(engine: *mut AccretaEngine) {
 /// see [`accreta_schema_measure_count`] / [`accreta_schema_dimension_count`]. Each measure
 /// value's own `tag` determines how it's interpreted; if it doesn't match that measure's declared
 /// type, accreta itself rejects the sample with [`AccretaStatus::Ingest`].
+///
+/// # Safety
+///
+/// `engine` must be a valid, live [`AccretaEngine`] handle. If `measures_len > 0`,
+/// `measures` must point to an array of at least `measures_len` valid values. If
+/// `dimensions_len > 0`, `dimensions` must point to an array of at least
+/// `dimensions_len` valid C-string pointers, and each pointer must reference a
+/// NUL-terminated string valid for the duration of the call.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_engine_ingest(
+pub unsafe extern "C" fn accreta_engine_ingest(
     engine: *mut AccretaEngine,
     timestamp_ms: i64,
     measures: *const AccretaMeasureValue,
@@ -196,8 +244,16 @@ pub extern "C" fn accreta_engine_ingest(
 
 /// Recomputes every level above `Minute` by merging bucket states upward. Safe to call
 /// repeatedly.
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_engine_rollup(engine: *mut AccretaEngine) {
+pub unsafe extern "C" fn accreta_engine_rollup(engine: *mut AccretaEngine) {
     ffi_guard((), || {
         if let Some(engine) = unsafe { engine.as_mut() } {
             engine.0.rollup();
@@ -206,8 +262,16 @@ pub extern "C" fn accreta_engine_rollup(engine: *mut AccretaEngine) {
 }
 
 /// Discards buckets older than `engine`'s configured [`AccretaRetention`] window, per level.
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_engine_prune(engine: *mut AccretaEngine) {
+pub unsafe extern "C" fn accreta_engine_prune(engine: *mut AccretaEngine) {
     ffi_guard((), || {
         if let Some(engine) = unsafe { engine.as_mut() } {
             engine.0.prune();
@@ -220,8 +284,13 @@ pub extern "C" fn accreta_engine_prune(engine: *mut AccretaEngine) {
 /// `*out_bucket`.
 ///
 /// Returns [`AccretaStatus::NotFound`] (leaving `*out_bucket` untouched) if no such bucket exists.
+///
+/// # Safety
+///
+/// `engine` must be null or a valid live [`AccretaEngine`] handle. `out_bucket` must be
+/// non-null and point to writable storage for an [`AccretaBucket`] handle.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_engine_bucket(
+pub unsafe extern "C" fn accreta_engine_bucket(
     engine: *const AccretaEngine,
     level: AccretaBucketLevel,
     start_ms: i64,
@@ -249,8 +318,16 @@ pub extern "C" fn accreta_engine_bucket(
 }
 
 /// How many buckets are currently stored at `level`.
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_engine_bucket_count(
+pub unsafe extern "C" fn accreta_engine_bucket_count(
     engine: *const AccretaEngine,
     level: AccretaBucketLevel,
 ) -> usize {
@@ -267,8 +344,16 @@ pub struct AccretaBucketCursor {
 
 /// Creates a cursor over every bucket currently stored at `level`. Free with
 /// [`accreta_bucket_cursor_free`].
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_engine_buckets_cursor(
+pub unsafe extern "C" fn accreta_engine_buckets_cursor(
     engine: *const AccretaEngine,
     level: AccretaBucketLevel,
 ) -> *mut AccretaBucketCursor {
@@ -285,8 +370,13 @@ pub extern "C" fn accreta_engine_buckets_cursor(
 
 /// Advances `cursor`, writing the next bucket (owned) to `*out_bucket`. Returns `false` once
 /// exhausted.
+///
+/// # Safety
+///
+/// `cursor` must be null or a valid live [`AccretaBucketCursor`] handle. `out_bucket` must
+/// be non-null and point to writable storage for an [`AccretaBucket`] handle.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_bucket_cursor_next(
+pub unsafe extern "C" fn accreta_bucket_cursor_next(
     cursor: *mut AccretaBucketCursor,
     out_bucket: *mut *mut AccretaBucket,
 ) -> bool {
@@ -311,8 +401,16 @@ pub extern "C" fn accreta_bucket_cursor_next(
 }
 
 /// Frees a bucket cursor.
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_bucket_cursor_free(cursor: *mut AccretaBucketCursor) {
+pub unsafe extern "C" fn accreta_bucket_cursor_free(cursor: *mut AccretaBucketCursor) {
     ffi_guard((), || {
         if !cursor.is_null() {
             drop(unsafe { Box::from_raw(cursor) });
@@ -323,8 +421,13 @@ pub extern "C" fn accreta_bucket_cursor_free(cursor: *mut AccretaBucketCursor) {
 /// Merges every bucket at `level` overlapping `[range_start_ms, range_end_ms)` into one total
 /// [`AccretaAggregateSet`] for `measure_id`, across every dimension group — i.e. the ungrouped
 /// total. Writes the owned result to `*out_set`.
+///
+/// # Safety
+///
+/// `engine` must be null or a valid live [`AccretaEngine`] handle. `out_set` must be non-null
+/// and point to writable storage for an [`AccretaAggregateSet`] handle.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_engine_query_range(
+pub unsafe extern "C" fn accreta_engine_query_range(
     engine: *const AccretaEngine,
     level: AccretaBucketLevel,
     range_start_ms: i64,
@@ -365,8 +468,13 @@ pub struct AccretaGroupedQueryCursor {
 /// Like [`accreta_engine_query_range`], but grouped by the dimensions selected by `group_by_bits`
 /// (bit `i` selects `DimensionId(i)`; `0` groups by nothing, producing one overall total). Writes
 /// a cursor over the grouped results to `*out_cursor`.
+///
+/// # Safety
+///
+/// `engine` must be null or a valid live [`AccretaEngine`] handle. `out_cursor` must be non-null
+/// and point to writable storage for an [`AccretaGroupedQueryCursor`] handle.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_engine_query_range_grouped(
+pub unsafe extern "C" fn accreta_engine_query_range_grouped(
     engine: *const AccretaEngine,
     level: AccretaBucketLevel,
     range_start_ms: i64,
@@ -407,8 +515,13 @@ pub extern "C" fn accreta_engine_query_range_grouped(
 
 /// Advances `cursor`, writing the next `(key, set)` pair (both owned) to `*out_key` / `*out_set`.
 /// Returns `false` once exhausted.
+///
+/// # Safety
+///
+/// `cursor` must be null or a valid live [`AccretaGroupedQueryCursor`] handle. When non-null,
+/// `out_key` and `out_set` must point to writable storage for the returned handles.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_grouped_query_cursor_next(
+pub unsafe extern "C" fn accreta_grouped_query_cursor_next(
     cursor: *mut AccretaGroupedQueryCursor,
     out_key: *mut *mut AccretaDimensionKey,
     out_set: *mut *mut AccretaAggregateSet,
@@ -439,8 +552,16 @@ pub extern "C" fn accreta_grouped_query_cursor_next(
 }
 
 /// Frees a grouped-query cursor.
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_grouped_query_cursor_free(cursor: *mut AccretaGroupedQueryCursor) {
+pub unsafe extern "C" fn accreta_grouped_query_cursor_free(cursor: *mut AccretaGroupedQueryCursor) {
     ffi_guard((), || {
         if !cursor.is_null() {
             drop(unsafe { Box::from_raw(cursor) });

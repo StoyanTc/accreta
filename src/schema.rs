@@ -51,11 +51,16 @@ pub extern "C" fn accreta_schema_builder_new() -> *mut AccretaSchemaBuilder {
     })
 }
 
+/// # Safety
+///
+/// `builder` must be null or a valid pointer returned by
+/// [`accreta_schema_builder_new`] that has not already been freed or consumed.
+///
 /// Frees a builder that was never passed to [`accreta_schema_builder_build`].
 ///
 /// Do not call this on a builder that `build` already consumed — `build` frees it for you.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_schema_builder_free(builder: *mut AccretaSchemaBuilder) {
+pub unsafe extern "C" fn accreta_schema_builder_free(builder: *mut AccretaSchemaBuilder) {
     ffi_guard((), || {
         if !builder.is_null() {
             drop(unsafe { Box::from_raw(builder) });
@@ -63,6 +68,11 @@ pub extern "C" fn accreta_schema_builder_free(builder: *mut AccretaSchemaBuilder
     })
 }
 
+/// # Safety
+///
+/// `builder` must be null or point to a valid, live [`AccretaSchemaBuilder`].
+/// If non-null, `name` must point to a valid NUL-terminated C string.
+///
 /// Registers a dimension named `name`. Registering the same name twice is a no-op, matching
 /// [`accreta::aggregate_set::SchemaBuilder::dimension`].
 ///
@@ -70,7 +80,7 @@ pub extern "C" fn accreta_schema_builder_free(builder: *mut AccretaSchemaBuilder
 /// dimension mask can only represent 64 dimensions) — the builder should be discarded via
 /// [`accreta_schema_builder_free`] after that.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_schema_builder_add_dimension(
+pub unsafe extern "C" fn accreta_schema_builder_add_dimension(
     builder: *mut AccretaSchemaBuilder,
     name: *const c_char,
 ) -> AccretaStatus {
@@ -168,6 +178,13 @@ fn register_measure_f64(
     }
 }
 
+/// # Safety
+///
+/// `builder` must be null or point to a valid, live [`AccretaSchemaBuilder`].
+/// If non-null, `name` must point to a valid NUL-terminated C string.
+/// If `kinds_len > 0`, `kinds` must point to an array of at least `kinds_len`
+/// valid [`AccretaAggregateKind`] values.
+///
 /// Registers a measure named `name` with numeric type `measure_type`, and attaches every
 /// aggregate kind in `kinds` (`kinds_len` entries; pass `kinds = NULL, kinds_len = 0` for a
 /// measure tracked by no built-in aggregate) to it in one call.
@@ -180,7 +197,7 @@ fn register_measure_f64(
 /// same aggregate kind appears more than once in `kinds` — both are program-logic errors on the
 /// caller's part, matching the panics in the underlying Rust API.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_schema_builder_add_measure(
+pub unsafe extern "C" fn accreta_schema_builder_add_measure(
     builder: *mut AccretaSchemaBuilder,
     name: *const c_char,
     measure_type: AccretaMeasureType,
@@ -217,6 +234,12 @@ pub extern "C" fn accreta_schema_builder_add_measure(
     })
 }
 
+/// # Safety
+///
+/// `builder` must be null or a valid pointer returned by
+/// [`accreta_schema_builder_new`] that has not already been freed or consumed.
+/// `out_schema` must be null or point to writable storage for a schema handle.
+///
 /// Finishes building a schema, consuming and freeing `builder` either way.
 ///
 /// On success, `*out_schema` is set to a new [`AccretaSchema`] handle the caller owns (free it
@@ -224,7 +247,7 @@ pub extern "C" fn accreta_schema_builder_add_measure(
 /// describing why (no dimension / no measure registered) is returned; see
 /// [`accreta_last_error_message`].
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_schema_builder_build(
+pub unsafe extern "C" fn accreta_schema_builder_build(
     builder: *mut AccretaSchemaBuilder,
     out_schema: *mut *mut AccretaSchema,
 ) -> AccretaStatus {
@@ -248,10 +271,15 @@ pub extern "C" fn accreta_schema_builder_build(
     })
 }
 
+/// # Safety
+///
+/// `schema` must be null or a valid pointer returned by a schema-building function
+/// that has not already been freed.
+///
 /// Frees a schema handle. Does not affect any [`AccretaEngine`](crate::AccretaEngine) already
 /// built from it — engines hold their own clone.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_schema_free(schema: *mut AccretaSchema) {
+pub unsafe extern "C" fn accreta_schema_free(schema: *mut AccretaSchema) {
     ffi_guard((), || {
         if !schema.is_null() {
             drop(unsafe { Box::from_raw(schema) });
@@ -259,29 +287,43 @@ pub extern "C" fn accreta_schema_free(schema: *mut AccretaSchema) {
     })
 }
 
+/// # Safety
+///
+/// `schema` must be null or point to a valid, live [`AccretaSchema`].
+///
 /// The number of dimensions registered in `schema`.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_schema_dimension_count(schema: *const AccretaSchema) -> usize {
+pub unsafe extern "C" fn accreta_schema_dimension_count(schema: *const AccretaSchema) -> usize {
     ffi_guard(0, || match unsafe { schema.as_ref() } {
         Some(schema) => schema.0.dimension_count(),
         None => 0,
     })
 }
 
+/// # Safety
+///
+/// `schema` must be null or point to a valid, live [`AccretaSchema`].
+///
 /// The number of measures registered in `schema`.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_schema_measure_count(schema: *const AccretaSchema) -> usize {
+pub unsafe extern "C" fn accreta_schema_measure_count(schema: *const AccretaSchema) -> usize {
     ffi_guard(0, || match unsafe { schema.as_ref() } {
         Some(schema) => schema.0.measure_count(),
         None => 0,
     })
 }
 
+/// # Safety
+///
+/// `schema` must be null or point to a valid, live [`AccretaSchema`].
+/// `out_type` must be null or point to writable storage for an
+/// [`AccretaMeasureType`].
+///
 /// The numeric type of measure `measure_id`, written to `*out_type`.
 ///
 /// Returns [`AccretaStatus::NotFound`] if `measure_id` isn't registered in this schema.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_schema_measure_type(
+pub unsafe extern "C" fn accreta_schema_measure_type(
     schema: *const AccretaSchema,
     measure_id: u8,
     out_type: *mut AccretaMeasureType,

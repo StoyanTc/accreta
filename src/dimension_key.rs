@@ -21,8 +21,16 @@ pub(crate) fn mask_from_bits(bits: u64) -> DimensionMask {
 }
 
 /// The number of values in `key`.
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_dimension_key_len(key: *const AccretaDimensionKey) -> usize {
+pub unsafe extern "C" fn accreta_dimension_key_len(key: *const AccretaDimensionKey) -> usize {
     ffi_guard(0, || match unsafe { key.as_ref() } {
         Some(key) => key.0.values().len(),
         None => 0,
@@ -32,8 +40,13 @@ pub extern "C" fn accreta_dimension_key_len(key: *const AccretaDimensionKey) -> 
 /// Reads the value at `index` into `*out_value`.
 ///
 /// Returns [`AccretaStatus::NotFound`] if `index` is out of range.
+///
+/// # Safety
+///
+/// `key` must be null or a valid live [`AccretaDimensionKey`] handle. `out_value` must be
+/// non-null and point to writable `u32` storage.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_dimension_key_get(
+pub unsafe extern "C" fn accreta_dimension_key_get(
     key: *const AccretaDimensionKey,
     index: usize,
     out_value: *mut u32,
@@ -56,8 +69,16 @@ pub extern "C" fn accreta_dimension_key_get(
 }
 
 /// Frees a dimension key handle returned by a group or grouped-query cursor.
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_dimension_key_free(key: *mut AccretaDimensionKey) {
+pub unsafe extern "C" fn accreta_dimension_key_free(key: *mut AccretaDimensionKey) {
     ffi_guard((), || {
         if !key.is_null() {
             drop(unsafe { Box::from_raw(key) });

@@ -98,8 +98,13 @@ fn extract_value(
 /// Returns [`AccretaStatus::TypeMismatch`] if `kind` was never attached to this measure in the
 /// schema (e.g. asking for `Average` on a measure only registered with `Sum` and `Count`), or if
 /// `kind` is `Min`/`Max` and no sample has been folded into this state yet.
+///
+/// # Safety
+///
+/// `set` must be null or a valid live [`AccretaAggregateSet`] handle. `out_value` must be
+/// non-null and point to writable storage for an [`AccretaMeasureValue`].
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_aggregate_set_get_value(
+pub unsafe extern "C" fn accreta_aggregate_set_get_value(
     set: *const AccretaAggregateSet,
     kind: AccretaAggregateKind,
     measure_type: AccretaMeasureType,
@@ -131,8 +136,16 @@ pub extern "C" fn accreta_aggregate_set_get_value(
 }
 
 /// Frees an aggregate-set handle.
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_aggregate_set_free(set: *mut AccretaAggregateSet) {
+pub unsafe extern "C" fn accreta_aggregate_set_free(set: *mut AccretaAggregateSet) {
     ffi_guard((), || {
         if !set.is_null() {
             drop(unsafe { Box::from_raw(set) });
@@ -142,8 +155,18 @@ pub extern "C" fn accreta_aggregate_set_free(set: *mut AccretaAggregateSet) {
 
 /// The number of measures represented in `list` (one [`AccretaAggregateSet`] per measure, in
 /// schema registration order).
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_aggregate_set_list_len(list: *const AccretaAggregateSetList) -> usize {
+pub unsafe extern "C" fn accreta_aggregate_set_list_len(
+    list: *const AccretaAggregateSetList,
+) -> usize {
     ffi_guard(0, || match unsafe { list.as_ref() } {
         Some(list) => list.0.len(),
         None => 0,
@@ -155,8 +178,16 @@ pub extern "C" fn accreta_aggregate_set_list_len(list: *const AccretaAggregateSe
 /// [`accreta_aggregate_set_free`], independently of `list`.
 ///
 /// Returns null if `measure_index` is out of range.
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_aggregate_set_list_get(
+pub unsafe extern "C" fn accreta_aggregate_set_list_get(
     list: *const AccretaAggregateSetList,
     measure_index: usize,
 ) -> *mut AccretaAggregateSet {
@@ -174,8 +205,16 @@ pub extern "C" fn accreta_aggregate_set_list_get(
 /// Frees an aggregate-set list handle. Does not affect handles already obtained from
 /// [`accreta_aggregate_set_list_get`] — those are independently owned and must be freed
 /// separately via [`accreta_aggregate_set_free`].
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_aggregate_set_list_free(list: *mut AccretaAggregateSetList) {
+pub unsafe extern "C" fn accreta_aggregate_set_list_free(list: *mut AccretaAggregateSetList) {
     ffi_guard((), || {
         if !list.is_null() {
             drop(unsafe { Box::from_raw(list) });

@@ -46,7 +46,7 @@ pub use error::*;
 pub use schema::*;
 pub use types::*;
 
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 /// Runs `f`, catching any Rust panic so it can never unwind across the FFI boundary.
 ///

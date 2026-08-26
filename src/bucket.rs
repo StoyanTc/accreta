@@ -16,8 +16,16 @@ use crate::types::{AccretaBucketLevel, datetime_to_ms};
 pub struct AccretaBucket(pub(crate) Bucket);
 
 /// The granularity of `bucket`.
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_bucket_level(bucket: *const AccretaBucket) -> AccretaBucketLevel {
+pub unsafe extern "C" fn accreta_bucket_level(bucket: *const AccretaBucket) -> AccretaBucketLevel {
     ffi_guard(AccretaBucketLevel::Minute, || {
         match unsafe { bucket.as_ref() } {
             Some(bucket) => bucket.0.level().into(),
@@ -27,8 +35,16 @@ pub extern "C" fn accreta_bucket_level(bucket: *const AccretaBucket) -> AccretaB
 }
 
 /// The inclusive start of `bucket`'s time window, in milliseconds since the Unix epoch (UTC).
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_bucket_start_ms(bucket: *const AccretaBucket) -> i64 {
+pub unsafe extern "C" fn accreta_bucket_start_ms(bucket: *const AccretaBucket) -> i64 {
     ffi_guard(0, || match unsafe { bucket.as_ref() } {
         Some(bucket) => datetime_to_ms(bucket.0.start()),
         None => 0,
@@ -36,8 +52,16 @@ pub extern "C" fn accreta_bucket_start_ms(bucket: *const AccretaBucket) -> i64 {
 }
 
 /// The exclusive end of `bucket`'s time window, in milliseconds since the Unix epoch (UTC).
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_bucket_end_ms(bucket: *const AccretaBucket) -> i64 {
+pub unsafe extern "C" fn accreta_bucket_end_ms(bucket: *const AccretaBucket) -> i64 {
     ffi_guard(0, || match unsafe { bucket.as_ref() } {
         Some(bucket) => datetime_to_ms(bucket.0.end()),
         None => 0,
@@ -45,8 +69,16 @@ pub extern "C" fn accreta_bucket_end_ms(bucket: *const AccretaBucket) -> i64 {
 }
 
 /// The number of distinct full-dimension groups in `bucket`.
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_bucket_group_count(bucket: *const AccretaBucket) -> usize {
+pub unsafe extern "C" fn accreta_bucket_group_count(bucket: *const AccretaBucket) -> usize {
     ffi_guard(0, || match unsafe { bucket.as_ref() } {
         Some(bucket) => bucket.0.group_count(),
         None => 0,
@@ -54,8 +86,16 @@ pub extern "C" fn accreta_bucket_group_count(bucket: *const AccretaBucket) -> us
 }
 
 /// Frees a bucket handle.
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_bucket_free(bucket: *mut AccretaBucket) {
+pub unsafe extern "C" fn accreta_bucket_free(bucket: *mut AccretaBucket) {
     ffi_guard((), || {
         if !bucket.is_null() {
             drop(unsafe { Box::from_raw(bucket) });
@@ -75,8 +115,16 @@ pub struct AccretaGroupCursor {
 /// Creates a cursor over every dimension group in `bucket`, in unspecified order.
 ///
 /// Free it with [`accreta_group_cursor_free`] once done (whether or not you consumed every item).
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_bucket_groups_cursor(
+pub unsafe extern "C" fn accreta_bucket_groups_cursor(
     bucket: *const AccretaBucket,
 ) -> *mut AccretaGroupCursor {
     ffi_guard(std::ptr::null_mut(), || {
@@ -100,8 +148,13 @@ pub extern "C" fn accreta_bucket_groups_cursor(
 ///
 /// Returns `true` and writes the pair, or returns `false` (leaving the out params untouched) once
 /// the cursor is exhausted.
+///
+/// # Safety
+///
+/// `cursor` must be null or a valid live [`AccretaGroupCursor`] handle. When non-null,
+/// `out_key` and `out_sets` must point to writable storage for the returned handles.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_group_cursor_next(
+pub unsafe extern "C" fn accreta_group_cursor_next(
     cursor: *mut AccretaGroupCursor,
     out_key: *mut *mut AccretaDimensionKey,
     out_sets: *mut *mut AccretaAggregateSetList,
@@ -133,8 +186,16 @@ pub extern "C" fn accreta_group_cursor_next(
 
 /// Frees a group cursor. Does not affect items already produced by [`accreta_group_cursor_next`]
 /// — free those separately.
+///
+/// # Safety
+///
+/// This function is an FFI boundary. The caller must satisfy the pointer validity
+/// requirements implied by its arguments: every non-null input pointer must point to
+/// a live value of the expected type, and every output pointer must be valid and writable
+/// for the value written by this function. Handles passed to `*_free` must have been
+/// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
-pub extern "C" fn accreta_group_cursor_free(cursor: *mut AccretaGroupCursor) {
+pub unsafe extern "C" fn accreta_group_cursor_free(cursor: *mut AccretaGroupCursor) {
     ffi_guard((), || {
         if !cursor.is_null() {
             drop(unsafe { Box::from_raw(cursor) });
