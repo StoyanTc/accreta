@@ -2,13 +2,13 @@
 
 C ABI wrapper for the [`accreta`](https://crates.io/crates/accreta) Rust library.
 
-`accreta-ffi` exposes accreta's core functionality through a stable C-compatible API so it can be used from C, C++, and other languages that can call a C ABI.
+`accreta-ffi` exposes accreta's core functionality through a C-compatible API so it can be used from C, C++, and other languages that can call a C ABI.
 
 The complete ABI contract is defined by the generated `accreta_ffi.h` header.
 
 ## Quick start
 
-### 1. Build the library
+### 1. Build the Rust library
 
 From the repository root:
 
@@ -16,7 +16,13 @@ From the repository root:
 cargo build --release
 ```
 
-This builds the native library and generates:
+This produces the native libraries under:
+
+```text
+target/release/
+```
+
+and generates:
 
 ```text
 include/accreta_ffi.h
@@ -28,37 +34,22 @@ The crate produces:
 * a static library (`staticlib`);
 * a Rust library (`rlib`).
 
-The generated header is the interface that C/C++ applications should use.
-
 ### 2. Build the C example
 
-A complete C example is provided in [`examples/c`](examples/c).
+The repository contains a complete C consumer example in [`examples/c`](examples/c).
+
+From the repository root:
 
 ```bash
-cd examples/c
-cmake -S . -B build
-cmake --build build
+cmake -S examples/c -B examples/c/build
+cmake --build examples/c/build --config Release
 ```
 
-On Windows with a multi-configuration generator:
+The example uses the shared `accreta-ffi` library by default and works with
+Linux, macOS, and Windows.
 
-```bash
-cmake --build build --config Release
-```
-
-The example demonstrates:
-
-* schema construction;
-* dimensions and measures;
-* ingestion;
-* rollup;
-* ungrouped queries;
-* grouped queries;
-* aggregate values;
-* error handling;
-* ABI object ownership.
-
-See [`examples/c/README.md`](examples/c/README.md) for platform-specific details.
+See [`examples/c/README.md`](examples/c/README.md) for platform-specific build
+and runtime instructions, static linking, and ABI usage details.
 
 ## Using the C ABI
 
@@ -78,9 +69,10 @@ The header is generated automatically by `build.rs` using `cbindgen.toml`.
 
 **Do not edit `accreta_ffi.h` manually.**
 
-The generated header contains `extern "C"` guards and can therefore also be included from C++.
+The generated header contains `extern "C"` guards and can therefore also be
+included from C++.
 
-## Basic API flow
+## API overview
 
 The typical usage pattern is:
 
@@ -104,9 +96,10 @@ SchemaBuilder
              └── GroupedQueryCursor
 ```
 
-A schema defines the dimensions and measures that the engine accepts.
+A schema defines the dimensions and measures accepted by the engine.
 
-After creating an engine from the schema, data can be ingested, rolled up, and queried.
+After creating an engine from the schema, data can be ingested, rolled up, and
+queried.
 
 ## Schema
 
@@ -149,7 +142,7 @@ accreta_schema_builder_build(builder, &schema);
 
 Measure IDs are assigned according to registration order.
 
-For example, if `cpu` is registered first and `requests` second:
+For example:
 
 ```text
 measure 0 = cpu
@@ -160,7 +153,8 @@ Those IDs are subsequently used by the ingestion and query APIs.
 
 ### Builder ownership
 
-A successful `accreta_schema_builder_build()` transfers the completed schema out of the builder and takes care of releasing the builder's memory.
+A successful `accreta_schema_builder_build()` finalizes the schema and releases
+the builder's memory.
 
 The C caller does not need to free the builder after a successful build.
 
@@ -178,7 +172,8 @@ An engine is created from a schema:
 AccretaEngine *engine = accreta_engine_new(schema);
 ```
 
-The engine clones the schema internally. The original schema can therefore be released immediately after the engine has been created:
+The engine clones the schema internally. The original schema can therefore be
+released immediately after the engine has been created:
 
 ```c
 AccretaEngine *engine = accreta_engine_new(schema);
@@ -200,9 +195,10 @@ Data is ingested using:
 accreta_engine_ingest(...)
 ```
 
-Dimensions are supplied in schema order, and measures are supplied in measure-registration order.
+Dimensions are supplied in schema order, and measures are supplied in
+measure-registration order.
 
-For example, with:
+For example:
 
 ```text
 dimensions:
@@ -214,21 +210,8 @@ measures:
     1 = requests
 ```
 
-an ingestion call supplies:
-
-```c
-const char *dimensions[] = {
-    "server-01",
-    "eu-west"
-};
-
-AccretaMeasureValue measures[] = {
-    /* cpu */     { ... },
-    /* requests */{ ... }
-};
-```
-
-The dimension and measure counts passed to the function must correspond to the schema.
+The dimension and measure counts passed to the ingestion function must
+correspond to the schema.
 
 ## Rollup
 
@@ -238,11 +221,12 @@ After data has been ingested, call:
 accreta_engine_rollup(engine);
 ```
 
-This performs the configured rollup operations for the data stored in the engine.
+This performs the configured rollup operations for the data stored in the
+engine.
 
-Rollup targets are defined by accreta's bucket hierarchy and can include multiple targets from the same source level.
-
-For example, a day can contribute independently to week and month rollups.
+Rollup targets are defined by accreta's bucket hierarchy. A source level can
+have multiple rollup targets; for example, day-level data can contribute
+independently to week and month rollups.
 
 ## Queries
 
@@ -250,30 +234,15 @@ The C ABI provides both ungrouped and grouped range queries.
 
 ### Range boundaries
 
-Query ranges are **inclusive**:
+Query ranges use **inclusive** boundaries:
 
 ```text
 [start, end]
 ```
 
-For example:
-
-```c
-accreta_engine_query_range(
-    engine,
-    ACCRETA_BUCKET_LEVEL_HOUR,
-    start,
-    end,
-    measure_id,
-    &result
-);
-```
-
 Both `start` and `end` are Unix timestamps in milliseconds.
 
-### Ungrouped query
-
-An ungrouped range query returns an `AccretaAggregateSet`:
+For example:
 
 ```c
 AccretaAggregateSet *result = NULL;
@@ -287,6 +256,10 @@ accreta_engine_query_range(
     &result
 );
 ```
+
+### Ungrouped query
+
+An ungrouped range query returns an `AccretaAggregateSet`.
 
 Individual aggregate values can then be retrieved:
 
@@ -311,14 +284,14 @@ accreta_aggregate_set_free(result);
 
 The ABI represents aggregate results using C-compatible value types.
 
-Some aggregate types have a result type independent of the original measure type.
-
-For example:
+Some aggregate types have a result type independent of the original measure
+type:
 
 * `Count` is always returned as `u64`;
 * `Average` is always returned as `f64`.
 
-Average is represented as a computed result in the C API. Internally, accreta keeps the mergeable average state as `(sum, count)`.
+Average is represented as a computed `f64` result by the C API. Internally,
+accreta maintains the mergeable average state as `(sum, count)`.
 
 ## Grouped queries
 
@@ -347,19 +320,19 @@ dimension 0 = host
 dimension 1 = region
 ```
 
-Grouping by host uses:
+Grouping by host:
 
 ```c
 1ULL << 0
 ```
 
-Grouping by region uses:
+Grouping by region:
 
 ```c
 1ULL << 1
 ```
 
-Grouping by both uses:
+Grouping by both:
 
 ```c
 (1ULL << 0) | (1ULL << 1)
@@ -375,7 +348,8 @@ accreta_grouped_query_cursor_next(...)
 
 returns the next group.
 
-The returned dimension key and aggregate set are independently allocated for that result and must be released by the caller:
+The returned dimension key and aggregate set are independently allocated for
+that result and must be released by the caller:
 
 ```c
 accreta_dimension_key_free(key);
@@ -388,28 +362,13 @@ After iteration is complete, release the cursor:
 accreta_grouped_query_cursor_free(cursor);
 ```
 
-A typical loop is:
-
-```c
-for (;;) {
-    AccretaDimensionKey *key = NULL;
-    AccretaAggregateSet *group = NULL;
-
-    if (!accreta_grouped_query_cursor_next(cursor, &key, &group))
-        break;
-
-    /* use key and group */
-
-    accreta_dimension_key_free(key);
-    accreta_aggregate_set_free(group);
-}
-```
-
 ## Dimension values
 
-Dimension values supplied during ingestion are internally represented by numeric value IDs.
+Dimension values supplied during ingestion are internally represented by
+numeric value IDs.
 
-A grouped query therefore exposes dimension IDs through `AccretaDimensionKey`:
+A grouped query therefore exposes dimension IDs through
+`AccretaDimensionKey`:
 
 ```c
 uint32_t value_id = 0;
@@ -421,9 +380,11 @@ accreta_dimension_key_get(
 );
 ```
 
-The current C ABI does **not** provide a reverse lookup from a dimension value ID back to its original string.
+The current C ABI does **not** provide a reverse lookup from a dimension value
+ID back to its original string.
 
-For example, a grouped result may expose an ID corresponding internally to:
+For example, a grouped result may expose a numeric ID corresponding internally
+to:
 
 ```text
 "server-01"
@@ -437,15 +398,17 @@ C strings passed into the ABI are borrowed for the duration of the call.
 
 The caller does not need to keep those strings alive after the FFI call returns.
 
-This is particularly important for schema names. The underlying `accreta::Schema` uses `&'static str`; `accreta-ffi` therefore owns the backing storage required to keep those strings alive for the lifetime of the relevant schema/engine objects.
+This is particularly important for schema names. The underlying
+`accreta::Schema` uses `&'static str`; `accreta-ffi` therefore owns the backing
+storage required to keep those strings alive for the lifetime of the relevant
+schema/engine objects.
 
 C callers do not directly allocate or release this Rust-owned memory.
 
 ## Ownership rules
 
-Objects returned by the ABI are owned by the C caller and must be released using their corresponding `*_free` function.
-
-The main ownership rules are:
+Objects returned by the ABI are owned by the C caller and must be released
+using their corresponding `*_free` function.
 
 | Object                      | Release with                          |
 | --------------------------- | ------------------------------------- |
@@ -455,9 +418,11 @@ The main ownership rules are:
 | `AccretaGroupedQueryCursor` | `accreta_grouped_query_cursor_free()` |
 | `AccretaDimensionKey`       | `accreta_dimension_key_free()`        |
 
-The engine clones the schema when it is created, so the schema handle may be released immediately afterward.
+The engine clones the schema when it is created, so the schema handle may be
+released immediately afterward.
 
-Objects returned by each grouped-query cursor iteration are independently allocated and must be released after use.
+Objects returned by each grouped-query cursor iteration are independently
+allocated and must be released after use.
 
 ## Errors and panics
 
@@ -491,13 +456,34 @@ static void check(int32_t status, const char *operation)
 
 Rust panics do not unwind through the C ABI.
 
-Operations that execute Rust logic are protected by a panic boundary and convert panics into an appropriate `AccretaStatus` value.
+Operations that execute Rust logic are protected by a panic boundary and convert
+panics into an appropriate `AccretaStatus` value.
 
-C applications should therefore treat a non-OK status as the failure boundary and should not rely on Rust panics crossing the ABI.
+C applications should therefore treat a non-OK status as the failure boundary
+and should not rely on Rust panics crossing the ABI.
+
+## Generated header
+
+`accreta_ffi.h` is generated automatically by the Rust build using `build.rs`
+and `cbindgen.toml`.
+
+The relevant files are:
+
+```text
+build.rs
+cbindgen.toml
+include/accreta_ffi.h
+```
+
+`accreta_ffi.h` is the consumer-facing ABI contract.
+
+Do not manually edit the generated header. Changes to the ABI should be made in
+the Rust source and reflected by regenerating the header.
 
 ## Source layout
 
-The implementation is split into small modules rather than putting the complete ABI in `src/lib.rs`.
+The implementation is split into small modules rather than putting the
+complete ABI in `src/lib.rs`.
 
 ```text
 src/
@@ -557,7 +543,8 @@ Contains:
 
 ### `aggregate.rs`
 
-Converts concrete Rust aggregate states into stable C-compatible representations.
+Converts concrete Rust aggregate states into stable C-compatible
+representations.
 
 ### `support.rs`
 
@@ -577,7 +564,8 @@ Contains status handling and aggregate-name string support.
 
 This crate uses Rust edition 2024.
 
-Rust 2024 requires unsafe attributes such as `no_mangle` to be written explicitly:
+Rust 2024 requires unsafe attributes such as `no_mangle` to be written
+explicitly:
 
 ```rust
 #[unsafe(no_mangle)]
@@ -586,23 +574,8 @@ pub extern "C" fn ...
 
 The ABI uses this form throughout.
 
-This is required because `no_mangle` affects the global symbol namespace and therefore carries safety requirements that cannot be verified by the compiler.
-
-## Generated header
-
-The C header is generated automatically from the Rust ABI declarations using `cbindgen`.
-
-The relevant files are:
-
-```text
-build.rs
-cbindgen.toml
-include/accreta_ffi.h
-```
-
-`accreta_ffi.h` is the consumer-facing ABI contract.
-
-Do not manually edit the generated header. Changes to the ABI should be made in the Rust source and reflected by regenerating the header.
+This is required because `no_mangle` affects the global symbol namespace and
+therefore carries safety requirements that cannot be verified by the compiler.
 
 ## Development
 
@@ -620,16 +593,21 @@ For a release build:
 cargo build --release
 ```
 
-To test the C consumer:
+To build and test the C example:
 
 ```bash
-cd examples/c
-cmake -S . -B build
-cmake --build build
+cmake -S examples/c -B examples/c/build
+cmake --build examples/c/build --config Release
 ```
 
-The C example is the recommended starting point for verifying that the generated header and native library work together.
+See [`examples/c/README.md`](examples/c/README.md) for the complete C example
+documentation and platform-specific instructions.
 
 ## License
 
-See the repository's license file for licensing information.
+Licensed under either of
+
+- Apache License, Version 2.0 (([LICENSE-APACHE](LICENSE-APACHE)))
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
+
+at your option.
