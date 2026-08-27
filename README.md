@@ -1,7 +1,14 @@
 # accreta-py
 
 PyO3 bindings for [`accreta`](../accreta) — a mergeable-state aggregation engine with
-hierarchical time-series rollups (`Minute -> Hour -> Day -> Week -> Month -> Year`).
+hierarchical time-series rollups:
+```text
+                                                         +--merge--> week buckets   (dead end)
+                                                         |
+minute --merge--> hour --merge--> day buckets -----------+
+ buckets           buckets                               |
+                                                         +--merge--> month buckets --merge--> year buckets
+```
 
 ## Install
 
@@ -80,3 +87,16 @@ left as panics rather than given their own Python exception type.
 - Schema/dimension/measure names passed from Python are leaked (`Box::leak`) to satisfy
   `accreta`'s `&'static str` signatures — fine for schemas built once at startup, not for
   building schemas in a loop (see the doc comment in `src/schema.rs`).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 (([LICENSE-APACHE](LICENSE-APACHE)))
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
+
+at your option.
