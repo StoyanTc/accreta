@@ -1,0 +1,13 @@
+[package]
+name = "accreta-py"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "accreta"       # must match the #[pymodule] fn name in src/lib.rs
+crate-type = ["cdylib"]
+
+[dependencies]
+accreta = "0.1.0"
+pyo3 = { version = "0.29.2", features = ["extension-module", "chrono"] }
+chrono = { version = "0.4", features = ["clock"] }
