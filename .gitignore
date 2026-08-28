@@ -1,0 +1,16 @@
+/target/
+.idea/
+.vscode/
+*.swp
+.DS_Store
+/include/
+/examples/c/build/
+node_modules/
+*.node
+index.js
+index.d.ts
+npm/*/*.node
+.venv/
+__pycache__/
+*.pyc
+/target/

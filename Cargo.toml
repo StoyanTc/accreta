@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-    "accreta-rs",
+    "accreta",
     "accreta-ffi",
     "accreta-node",
     "accreta-py",
