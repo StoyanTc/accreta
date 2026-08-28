@@ -1,0 +1,34 @@
+[package]
+name = "accreta-node"
+version = "0.1.0"
+edition = "2024"
+description = "Node.js bindings for accreta, a mergeable-state aggregation engine with hierarchical time-series rollups"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+# cdylib is required to build the native Node addon (a shared library loaded
+# via N-API). This crate is a binding layer only — it is not meant to be
+# consumed as a normal Rust library, so no rlib target is produced.
+crate-type = ["cdylib"]
+
+[dependencies]
+# Path dependency: assumes accreta-node lives next to the `accreta` crate,
+# the same layout already used for accreta-ffi. Adjust this path (or switch
+# to a git/registry dependency) if your layout differs.
+accreta = "0.1.0"
+
+# Must resolve to the same 0.4.x series accreta uses so `DateTime<Utc>`
+# is the same type across the crate boundary. 0.4.31+ is required for
+# `DateTime::from_timestamp_millis`.
+chrono = { version = "0.4.31", default-features = false, features = ["clock", "std"] }
+
+napi = { version = "2", default-features = false, features = ["napi4"] }
+napi-derive = "2"
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true
+strip = "symbols"

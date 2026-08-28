@@ -1,0 +1,38 @@
+{
+  "name": "accreta-node",
+  "version": "0.1.0",
+  "description": "Node.js bindings for accreta, a mergeable-state aggregation engine with hierarchical time-series rollups",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "napi": {
+    "name": "accreta-node",
+    "triples": {
+      "defaults": true,
+      "additional": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu",
+        "x86_64-pc-windows-msvc",
+        "aarch64-pc-windows-msvc"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "artifacts": "napi artifacts",
+    "prepublishOnly": "napi prepublish -t npm",
+    "test": "node --test test/"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.0"
+  },
+  "engines": {
+    "node": ">= 16"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ],
+  "license": "MIT OR Apache-2.0"
+}
