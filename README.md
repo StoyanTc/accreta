@@ -88,7 +88,7 @@ assert_eq!(visits.get::<Count>().unwrap().value(), 2);
 
 That's the whole workflow: describe your measures, ingest, roll up, read. You don't need to know
 anything about how the merging works under the hood to use the built-in aggregates
-(`Sum`, `Count`, `Min`, `Max`, `Average`).
+(`Sum`, `Count`, `Min`, `Max`, `Average`, `TDigest`).
 
 You can also query a time range directly, merging whichever buckets already exist at a level
 without storing anything new:
@@ -110,9 +110,13 @@ ad-hoc queries and retention.
   levels, but the rollup path between them fans out rather than chaining straight through: `day`
   feeds both `week` and `month` directly, `week` never rolls up any further, and `month` feeds
   `year`. See `BucketLevel::rollup_targets` for the exact fan-out at each level.
-- **Pluggable aggregates** — `Sum`, `Count`, `Min`, `Max`, and `Average` ship built in; you can
-  add your own (e.g. running variance) without changing anything in the engine — see
+- **Pluggable aggregates** — `Sum`, `Count`, `Min`, `Max`, `Average`, and `TDigest` ship built
+  in; you can add your own (e.g. running variance) without changing anything in the engine — see
   [Adding a custom aggregate](#adding-a-custom-aggregate) below.
+- **Approximate quantiles** — `TDigest` gives you `quantile(q)` estimates (p50, p95, p99, ...)
+  via a self-contained t-digest implementation, mergeable through the same rollup hierarchy as
+  every exact aggregate. See [Approximate quantiles with TDigest](#approximate-quantiles-with-tdigest)
+  below.
 - **Dimension-based grouping** — up to 64 dimensions per schema. Every bucket stores the *full*
   dimension key, so you can query any `GROUP BY` combination later without precomputing every
   possible projection up front.
@@ -147,6 +151,38 @@ builder.measure("visits").with_any::<Count>().with::<Variance<f64>>();
 implementation using Welford's algorithm and its parallel-merge variant, including a worked
 example that verifies the merge path and the single-update path agree.
 
+## Approximate quantiles with TDigest
+
+`TDigest` is a built-in aggregate for estimating quantiles (medians, p95s, p99s, ...) without
+storing every raw sample. Unlike `Sum`, `Count`, `Min`, `Max`, and `Average` — all of which are
+*exact* — `TDigest` is a compressing sketch: its `Monoid` laws hold only within a
+compression-dependent error bound, not exactly. Two practical consequences:
+
+- Comparing two digests with `==` checks structural equality, not "represents the same
+  distribution" — prefer comparing `quantile()` outputs within a tolerance instead.
+- Error can compound across repeated rollups (`Minute` → `Hour` → `Day` → `Week`/`Month` →
+  `Year`); pick a larger compression if you need a tighter bound on deeply-rolled-up buckets.
+
+Register it on a measure like any other aggregate, and read back estimates with `quantile(q)`:
+
+```rust,ignore
+use accreta::aggregates::TDigest;
+
+builder.measure("latency_ms").with::<TDigest>();
+
+// ... after ingesting and rolling up ...
+let digest = sets[MeasureId(0).index()].get::<TDigest>().unwrap();
+let p50 = digest.quantile(0.5);
+let p99 = digest.quantile(0.99);
+```
+
+`TDigest` is deliberately heavier than the other built-ins (heap-allocated centroid storage,
+buffered/lazy compression) and is meant to be registered only on the handful of measures that
+actually need quantiles — it's not a replacement for `Average`, which remains the cheap, exact,
+general-purpose mean. Registering both on the same measure is a common pairing when you want
+"typical value" and "distribution shape" together. See
+[`examples/tdigest_quantiles.rs`](examples/tdigest_quantiles.rs) for a complete walkthrough.
+
 ## Retention and pruning
 
 By default an `Engine` keeps every bucket it ever creates, at every level, forever — fine for a
@@ -173,7 +209,7 @@ the only place data leaves the engine.
 | `monoid` | The `Monoid` trait: how two states combine |
 | `aggregator` | The `Aggregator` trait: how one sample folds into a state |
 | `erased` | Type-erasure so heterogeneous aggregates can share a collection |
-| `aggregates` | Built-in aggregates: `Sum`, `Count`, `Min`, `Max`, `Average` |
+| `aggregates` | Built-in aggregates: `Sum`, `Count`, `Min`, `Max`, `Average`, `TDigest` |
 | `aggregate_set` | `Schema` + `AggregateSet`: a named collection of states |
 | `dimensions` | `DimensionId`, `DimensionMask`, `DimensionKey`, and their dictionaries |
 | `measures` | `MeasureId`, `MeasureType`, `MeasureValue`, and the `MeasureNumber`/`FromValue` traits |
@@ -186,6 +222,7 @@ the only place data leaves the engine.
 ```sh
 cargo run --example basic_usage
 cargo run --example custom_aggregate
+cargo run --example tdigest_quantiles
 ```
 
 ## Testing

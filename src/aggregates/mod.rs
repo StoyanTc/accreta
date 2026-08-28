@@ -11,9 +11,11 @@ mod count;
 mod max;
 mod min;
 mod sum;
+mod tdigest;
 
 pub use average::Average;
 pub use count::Count;
 pub use max::Max;
 pub use min::Min;
 pub use sum::Sum;
+pub use tdigest::TDigest;

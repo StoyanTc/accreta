@@ -12,6 +12,12 @@
 //! ([`Monoid::merge`]) to get the state you'd have gotten by seeing both
 //! sets of data at once. Rollups then become pure state merges.
 //!
+//! Most built-in aggregates (`Sum`, `Count`, `Min`, `Max`, `Average`) are *exact*: merging is
+//! associative and commutative in the strict sense. [`aggregates::TDigest`] is the one
+//! exception — an approximate, compressing sketch used for quantile estimation, whose `Monoid`
+//! laws hold only within its compression-dependent error bound rather than exactly. See its
+//! module docs for details before using it in place of an exact aggregate.
+//!
 //! The hierarchy is **not** a straight chain — `day` buckets roll up directly into *both*
 //! `week` and `month`, and `week` is a dead end that never rolls up any further (only `month`
 //! feeds `year`):
@@ -50,7 +56,7 @@
 //! | [`monoid`] | The `Monoid` trait: how two states combine |
 //! | [`aggregator`] | The `Aggregator` trait: how one sample folds into a state |
 //! | [`erased`] | Type-erasure so heterogeneous aggregates can share a collection |
-//! | [`aggregates`] | Built-in aggregates: `Sum`, `Count`, `Min`, `Max`, `Average` |
+//! | [`aggregates`] | Built-in aggregates: `Sum`, `Count`, `Min`, `Max`, `Average`, `TDigest` |
 //! | [`aggregate_set`] | `Schema` + `AggregateSet`: a named collection of states |
 //! | [`bucket`] | `BucketLevel` + `Bucket`: a time window holding an `AggregateSet` per dimension group |
 //! | [`retention`] | `Retention`: how long buckets are kept at each level |
@@ -76,8 +82,9 @@
 //! ```
 //!
 //! See the `custom_aggregate` example for a complete worked implementation (a running Variance
-//! computed via Welford's algorithm), and [`aggregates::Average`] for an example of
-//! building a derived aggregate out of two existing ones.
+//! computed via Welford's algorithm), [`aggregates::Average`] for an example of
+//! building a derived aggregate out of two existing ones, and the `tdigest_quantiles` example
+//! for a built-in aggregate whose `Monoid` laws are only approximate rather than exact.
 //!
 //! ## Quick start
 //!
