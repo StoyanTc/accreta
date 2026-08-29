@@ -16,7 +16,7 @@ crate-type = ["cdylib"]
 # Path dependency: assumes accreta-node lives next to the `accreta` crate,
 # the same layout already used for accreta-ffi. Adjust this path (or switch
 # to a git/registry dependency) if your layout differs.
-accreta = "0.1.0"
+accreta = { path = "../accreta", version = "0.1.0" }
 
 # Must resolve to the same 0.4.x series accreta uses so `DateTime<Utc>`
 # is the same type across the crate boundary. 0.4.31+ is required for

@@ -12,20 +12,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "accreta"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e28024e5055ed0e9683bf7abb342221bd338addd5d49728bb11a0737c1fb2141"
-dependencies = [
- "chrono",
- "thiserror",
-]
-
-[[package]]
 name = "accreta-ffi"
 version = "0.1.0"
 dependencies = [
- "accreta 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "accreta",
  "cbindgen",
  "chrono",
 ]
@@ -34,7 +24,7 @@ dependencies = [
 name = "accreta-node"
 version = "0.1.0"
 dependencies = [
- "accreta 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "accreta",
  "chrono",
  "napi",
  "napi-build",
@@ -45,7 +35,7 @@ dependencies = [
 name = "accreta-py"
 version = "0.1.0"
 dependencies = [
- "accreta 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "accreta",
  "chrono",
  "pyo3",
 ]

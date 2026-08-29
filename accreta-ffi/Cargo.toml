@@ -2,6 +2,10 @@
 name = "accreta-ffi"
 version = "0.1.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "C ABI bindings for the accreta time-series aggregation library"
+repository = "https://github.com/you/accreta"
+readme = "README.md"
 
 [lib]
 # cdylib for the shared object (.so), staticlib in case you ever want to
@@ -10,7 +14,7 @@ edition = "2024"
 crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
-accreta = "0.1.0"
+accreta = { path = "../accreta", version = "0.1.0" }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 [build-dependencies]
