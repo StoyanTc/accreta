@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.85"
 description = "A reusable mergeable-state aggregation framework, applied to time-series rollups"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/stoyantc/accreta-rs"
+repository = "https://github.com/stoyantc/accreta"
 readme = "README.md"
 keywords = ["aggregation", "time-series", "rollup", "monoid", "metrics"]
 
