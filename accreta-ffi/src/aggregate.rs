@@ -1,5 +1,5 @@
 use accreta::aggregate_set::AggregateSet;
-use accreta::aggregates::{Average, Count, Max, Min, Sum};
+use accreta::aggregates::{Average, Count, Max, Min, Sum, TDigest};
 use accreta::measures::MeasureType;
 
 use crate::error::{AccretaStatus, fail};
@@ -32,6 +32,12 @@ pub struct AccretaAggregateSetList(pub(crate) Vec<AggregateSet>);
 /// `.value() -> f64` regardless of `T`. **Verify this against your actual `aggregates.rs`** —
 /// this is the one place in this crate that had to be written without seeing that file, and it's
 /// deliberately the only function that would need to change if a signature differs.
+///
+/// `TDigest` is deliberately excluded from this function's `(kind, measure_type)` match — it
+/// doesn't reduce to a single scalar `AccretaMeasureValue`, so [`accreta_aggregate_set_get_value`]
+/// rejects it before ever calling in here (see that function's early check). The `K::TDigest`
+/// arms below exist only so the match stays exhaustive; they are unreachable via the public FFI
+/// entry point.
 fn extract_value(
     set: &AggregateSet,
     kind: AccretaAggregateKind,
@@ -89,6 +95,8 @@ fn extract_value(
         (K::Average, M::F64) => set
             .get::<Average<f64>>()
             .map(|s| AccretaMeasureValue::f64(s.sum() / s.count() as f64)),
+
+        (K::TDigest, M::I64 | M::U64 | M::F64) => None,
     }
 }
 
@@ -98,6 +106,10 @@ fn extract_value(
 /// Returns [`AccretaStatus::TypeMismatch`] if `kind` was never attached to this measure in the
 /// schema (e.g. asking for `Average` on a measure only registered with `Sum` and `Count`), or if
 /// `kind` is `Min`/`Max` and no sample has been folded into this state yet.
+///
+/// `kind = AccretaAggregateKind::TDigest` always fails with
+/// [`AccretaStatus::TypeMismatch`] here — a `TDigest` doesn't reduce to one scalar value. Read it
+/// with [`accreta_aggregate_set_get_quantile`] instead.
 ///
 /// # Safety
 ///
@@ -117,6 +129,12 @@ pub unsafe extern "C" fn accreta_aggregate_set_get_value(
         let Some(out_value) = (unsafe { out_value.as_mut() }) else {
             return fail(AccretaStatus::NullPointer, "out_value pointer is null");
         };
+        if matches!(kind, AccretaAggregateKind::TDigest) {
+            return fail(
+                AccretaStatus::TypeMismatch,
+                "TDigest has no single scalar value; use accreta_aggregate_set_get_quantile",
+            );
+        }
         let measure_type = match measure_type {
             AccretaMeasureType::I64 => MeasureType::I64,
             AccretaMeasureType::U64 => MeasureType::U64,
@@ -130,6 +148,51 @@ pub unsafe extern "C" fn accreta_aggregate_set_get_value(
             None => fail(
                 AccretaStatus::TypeMismatch,
                 "aggregate kind was not registered for this measure, or holds no value yet",
+            ),
+        }
+    })
+}
+
+/// Reads the estimated value at quantile `quantile` (clamped to `0.0..=1.0`) from the `TDigest`
+/// attached to `set`, writing it to `*out_value`.
+///
+/// Unlike [`accreta_aggregate_set_get_value`], this takes no `measure_type` parameter: `TDigest`
+/// is not generic over the measure's declared type — it's always a plain `f64` sketch — so there
+/// is nothing to dispatch on. In practice the owning measure will always be `F64` anyway, since
+/// [`crate::accreta_schema_builder_add_measure`] refuses to attach `TDigest` to an `I64`/`U64`
+/// measure in the first place (see [`AccretaAggregateKind::TDigest`]).
+///
+/// Returns [`AccretaStatus::TypeMismatch`] if `TDigest` was never attached to this measure in the
+/// schema. If the measure has a `TDigest` but no sample has been folded into it yet, `*out_value`
+/// is set to `f64::NAN` and the status is still [`AccretaStatus::Ok`] — mirroring
+/// [`accreta::aggregates::TDigest::quantile`]'s own "no samples yet" behavior, since that's a
+/// valid (if unhelpful) reading rather than an error.
+///
+/// # Safety
+///
+/// `set` must be null or a valid live [`AccretaAggregateSet`] handle. `out_value` must be
+/// non-null and point to writable `f64` storage.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn accreta_aggregate_set_get_quantile(
+    set: *const AccretaAggregateSet,
+    quantile: f64,
+    out_value: *mut f64,
+) -> AccretaStatus {
+    ffi_guard(AccretaStatus::Panic, || {
+        let Some(set) = (unsafe { set.as_ref() }) else {
+            return fail(AccretaStatus::NullPointer, "set pointer is null");
+        };
+        let Some(out_value) = (unsafe { out_value.as_mut() }) else {
+            return fail(AccretaStatus::NullPointer, "out_value pointer is null");
+        };
+        match set.0.get::<TDigest>() {
+            Some(digest) => {
+                *out_value = digest.quantile(quantile);
+                AccretaStatus::Ok
+            }
+            None => fail(
+                AccretaStatus::TypeMismatch,
+                "TDigest was not registered for this measure",
             ),
         }
     })

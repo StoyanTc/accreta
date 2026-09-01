@@ -2,7 +2,7 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 
 use accreta::aggregate_set::{Schema, SchemaBuilder};
-use accreta::aggregates::{Average, Count, Max, Min, Sum};
+use accreta::aggregates::{Average, Count, Max, Min, Sum, TDigest};
 use accreta::measures::MeasureId;
 
 use crate::AccretaAggregateKind;
@@ -120,6 +120,12 @@ fn register_measure_i64(
             AccretaAggregateKind::Average => {
                 measure.with::<Average<i64>>();
             }
+            AccretaAggregateKind::TDigest => {
+                // Unreachable: accreta_schema_builder_add_measure rejects TDigest on a non-F64
+                // measure before this function is ever called (with::<A>() below requires an
+                // exact Aggregator::Input == T match, and TDigest::Input is fixed at f64).
+                unreachable!("add_measure validates TDigest is only requested for F64 measures");
+            }
         }
     }
 }
@@ -147,6 +153,10 @@ fn register_measure_u64(
             AccretaAggregateKind::Average => {
                 measure.with::<Average<u64>>();
             }
+            AccretaAggregateKind::TDigest => {
+                // Unreachable — see the identical comment in register_measure_i64.
+                unreachable!("add_measure validates TDigest is only requested for F64 measures");
+            }
         }
     }
 }
@@ -173,6 +183,9 @@ fn register_measure_f64(
             }
             AccretaAggregateKind::Average => {
                 measure.with::<Average<f64>>();
+            }
+            AccretaAggregateKind::TDigest => {
+                measure.with::<TDigest>();
             }
         }
     }
@@ -223,6 +236,20 @@ pub unsafe extern "C" fn accreta_schema_builder_add_measure(
         } else {
             unsafe { std::slice::from_raw_parts(kinds, kinds_len) }
         };
+
+        // TDigest's Aggregator::Input is fixed at f64 (see AccretaAggregateKind::TDigest's
+        // docs), and MeasureBuilder<T>::with::<A>() requires an exact Aggregator::Input == T
+        // match — so TDigest can only be attached to an F64 measure. Checked here, before any
+        // registration happens, so a rejected request never leaves the measure partially
+        // configured (e.g. with an earlier kind in the same `kinds` slice already attached).
+        if kinds.contains(&AccretaAggregateKind::TDigest)
+            && !matches!(measure_type, AccretaMeasureType::F64)
+        {
+            return fail(
+                AccretaStatus::TypeMismatch,
+                "TDigest can only be attached to an F64 measure",
+            );
+        }
 
         match measure_type {
             AccretaMeasureType::I64 => register_measure_i64(&mut builder.0, name, kinds),
