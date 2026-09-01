@@ -15,7 +15,7 @@
 //! type); only `Count` uses `.with_any()`, confirmed against your `basic_usage` example.
 
 use accreta::aggregate_set::{Schema, SchemaBuilder};
-use accreta::aggregates::{Average, Count, Max, Min, Sum};
+use accreta::aggregates::{Average, Count, Max, Min, Sum, TDigest};
 use accreta::measures::MeasureType;
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -48,11 +48,15 @@ impl PySchemaBuilder {
     }
 
     /// Register a measure of type `dtype` ("i64" | "u64" | "f64") with the given aggregates
-    /// (any of "sum", "min", "max" — value-based; "count" — value-independent; "average").
+    /// (any of "sum", "min", "max" — value-based; "count" — value-independent; "average";
+    /// "tdigest" — approximate quantiles, **f64 measures only**).
     ///
-    /// Raises `ValueError` for an unknown dtype/aggregate name. Raises `PanicException` (via
-    /// PyO3's default panic-catching) for a duplicate measure or aggregate name, or more than
-    /// 64 dimensions — same conditions that panic in the Rust API.
+    /// Raises `ValueError` for an unknown dtype/aggregate name, or for "tdigest" on an i64/u64
+    /// measure (`TDigest` is concrete `f64`, not generic like `Sum<T>`/`Average<T>`, so it can
+    /// only attach to an f64 measure — matches the `MeasureBuilder<T>::with::<A>()` bound
+    /// enforced at compile time in the Rust API). Raises `PanicException` (via PyO3's default
+    /// panic-catching) for a duplicate measure or aggregate name, or more than 64 dimensions —
+    /// same conditions that panic in the Rust API.
     #[pyo3(signature = (name, dtype, aggregates))]
     fn measure(&mut self, name: String, dtype: &str, aggregates: Vec<String>) -> PyResult<()> {
         let name = leak_str(name);
@@ -79,6 +83,9 @@ impl PySchemaBuilder {
                         "average" => {
                             mb.with::<Average<f64>>();
                         }
+                        "tdigest" => {
+                            mb.with::<TDigest>();
+                        }
                         other => return Err(unknown_aggregate(other)),
                     }
                 }
@@ -102,6 +109,7 @@ impl PySchemaBuilder {
                         "average" => {
                             mb.with::<Average<i64>>();
                         }
+                        "tdigest" => return Err(tdigest_requires_f64()),
                         other => return Err(unknown_aggregate(other)),
                     }
                 }
@@ -125,6 +133,7 @@ impl PySchemaBuilder {
                         "average" => {
                             mb.with::<Average<u64>>();
                         }
+                        "tdigest" => return Err(tdigest_requires_f64()),
                         other => return Err(unknown_aggregate(other)),
                     }
                 }
@@ -170,8 +179,19 @@ fn parse_dtype(s: &str) -> PyResult<MeasureType> {
 
 fn unknown_aggregate(name: &str) -> PyErr {
     PyValueError::new_err(format!(
-        "unknown aggregate '{name}' (expected one of: sum, min, max, count, average)"
+        "unknown aggregate '{name}' (expected one of: sum, min, max, count, average, tdigest)"
     ))
+}
+
+/// `TDigest` is concrete `f64` (not generic over the measure type like `Sum<T>`/`Average<T>`),
+/// so it can only be registered on an f64 measure — mirrors the up-front validation
+/// accreta-ffi's `accreta_schema_builder_add_measure` does before calling into the Rust
+/// registration, rather than letting a compile-time bound violation surface some other way.
+fn tdigest_requires_f64() -> PyErr {
+    PyValueError::new_err(
+        "aggregate 'tdigest' can only be registered on an f64 measure (TDigest isn't generic \
+         over the measure type)",
+    )
 }
 
 #[pyclass(name = "Retention", from_py_object)]

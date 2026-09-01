@@ -15,11 +15,17 @@
 //!   computed ratio as a Python `float`, and `None` when `count() == 0` rather than dividing by
 //!   zero (a case the core crate itself doesn't need to handle, since `Average` never exposes
 //!   division directly).
+//! - `TDigest` — not generic (always `f64`), registered via `.with::<TDigest>()`. Unlike the
+//!   above, it has no single `.value()` — reading it means picking a quantile. So `values()`
+//!   silently skips it rather than erroring the whole dict (a set commonly has TDigest
+//!   registered alongside Count/Average on the same measure, and a missing-value error there
+//!   shouldn't take down reads of aggregates that *are* readable); read it instead via
+//!   `AggregateSet.quantile(name, q)`.
 
 use std::any::Any;
 
 use accreta::aggregate_set::AggregateSet;
-use accreta::aggregates::{Average, Count, Max, Min, Sum}; // ASSUMED module path + type names
+use accreta::aggregates::{Average, Count, Max, Min, Sum, TDigest}; // ASSUMED module path + type names
 use accreta::measures::MeasureType;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
@@ -35,16 +41,47 @@ impl PyAggregateSet {
     /// aggregates ("i64" | "u64" | "f64"); `PyEngine` methods that return a `PyAggregateSet`
     /// pass it in automatically, so you shouldn't normally need to call this directly with an
     /// explicit `dtype`.
+    ///
+    /// A `TDigest` registered on this measure is silently omitted from the dict — it has no
+    /// single value to report, only quantiles, so it doesn't error the whole read the way an
+    /// unrecognized aggregate kind would. Read it separately via `quantile(name, q)`.
     fn values<'py>(&self, py: Python<'py>, dtype: &str) -> PyResult<Bound<'py, PyDict>> {
         let dtype = parse_dtype(dtype)?;
         let dict = PyDict::new(py);
 
         for (name, state) in self.0.iter() {
+            if name == "tdigest" {
+                continue;
+            }
             let value = extract_aggregate_value(py, name, dtype, state)?;
             dict.set_item(name, value)?;
         }
 
         Ok(dict)
+    }
+
+    /// Estimate the value at quantile `q` (`0.0..=1.0`) for the `TDigest` aggregate named
+    /// `name`. Raises `RuntimeError` if `name` isn't in this set, or isn't a `TDigest`
+    /// (`values()` is the way to read every other built-in aggregate kind).
+    fn quantile(&self, name: &str, q: f64) -> PyResult<f64> {
+        for (n, state) in self.0.iter() {
+            if n != name {
+                continue;
+            }
+            return state
+                .as_any()
+                .downcast_ref::<TDigest>()
+                .map(|td| td.quantile(q))
+                .ok_or_else(|| {
+                    PyRuntimeError::new_err(format!(
+                        "aggregate '{name}' isn't a tdigest — use AggregateSet.values() to read it"
+                    ))
+                });
+        }
+
+        Err(PyRuntimeError::new_err(format!(
+            "no aggregate named '{name}' in this set"
+        )))
     }
 }
 
@@ -124,10 +161,17 @@ pub fn extract_aggregate_value<'py>(
             }
         }),
 
+        ("tdigest", _) => {
+            return Err(PyRuntimeError::new_err(
+                "aggregate 'tdigest' can't be read via AggregateSet.values() — \
+                 it has no single value, only quantiles. Use AggregateSet.quantile(name, q) instead.",
+            ));
+        }
+
         (other, _) => {
             return Err(PyRuntimeError::new_err(format!(
                 "accreta-py doesn't yet know how to read aggregate '{other}' — \
-                 it isn't one of the built-in sum/min/max/count/average kinds this wrapper handles"
+                 it isn't one of the built-in sum/min/max/count/average/tdigest kinds this wrapper handles"
             )));
         }
     };
