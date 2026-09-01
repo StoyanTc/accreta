@@ -31,6 +31,7 @@ accreta-node/
   package.json     # napi-rs CLI build scripts
   src/lib.rs        # all bindings
   examples/basic_usage.js
+  examples/tdigest_quantiles.js
 ```
 
 This assumes `accreta-node` sits next to `accreta` (and `accreta-ffi`), matching the layout you
@@ -63,6 +64,7 @@ guide](https://napi.rs/docs/deep-dive/release) — the same pattern Prisma and `
 npm install
 npm run build          # or: npm run build:debug for a faster, unoptimized build
 node examples/basic_usage.js
+node examples/tdigest_quantiles.js
 ```
 
 If `node examples/basic_usage.js` fails with a "cannot find module" error, `npm run build` didn't

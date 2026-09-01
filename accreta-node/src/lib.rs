@@ -2,12 +2,31 @@
 //!
 //! This binds directly to the `accreta` Rust crate (not through `accreta-ffi`'s C ABI) so there
 //! is no extra marshaling layer between JS and Rust. As with `accreta-ffi`, only the fixed set of
-//! built-in aggregates (`sum`, `count`, `min`, `max`, `average`) is exposed — custom/generic
-//! aggregate state is not reachable from JS, since a JS caller can't supply a Rust type at
-//! compile time.
+//! built-in aggregates (`sum`, `count`, `min`, `max`, `average`, `tdigest`) is exposed —
+//! custom/generic aggregate state is not reachable from JS, since a JS caller can't supply a Rust
+//! type at compile time.
 //!
 //! ## Design notes for future maintainers
 //!
+//! - **`tdigest` is exposed as an opaque `TDigestHandle` class, not a plain number.** Unlike the
+//!   other aggregates, a quantile estimate needs a `q` parameter supplied at query time, so it
+//!   can't be flattened into an `Option<f64>` field the way `sum`/`min`/`max`/`average` are.
+//!   `TDigestHandle::quantile(q)` lets JS ask for any quantile on demand instead of us guessing
+//!   which percentiles the caller wants ahead of time.
+//! - **Shadow measures for cross-type `tdigest`.** `accreta::SchemaBuilder::with` requires
+//!   `Aggregator::Input == T`, and `TDigest::Input` is a fixed `f64` (intentionally not generic
+//!   over the measure's numeric type — see `accreta::aggregates::TDigest`'s own docs), so it can
+//!   only attach directly to an already-`f64` measure. For an `i64`/`u64` measure that requests
+//!   `"tdigest"`, `Engine::new` registers a second, internal-only `f64` measure (named
+//!   `__tdigest_shadow__<name>`, never exposed via `measureNames`) with `TDigest` on *that*, and
+//!   `ingest` fans each sample out to both the real measure and its shadow, cast to `f64`.
+//!   `tdigest_shadow_id` tracks the real→shadow `MeasureId` mapping; `queryRangeTDigest` resolves
+//!   through it, and `buckets`/schema-facing measure counts stay truncated to the real measures
+//!   so shadows are invisible from JS. This is deliberately a wrapper-only mechanism — `accreta`
+//!   itself never sees anything unusual, just two ordinary independently-typed measures written
+//!   together — so it doesn't require, and doesn't presume, any change to `accreta` core or to
+//!   `accreta-py`/`accreta-ffi`. Cost: one extra measure's worth of bucket storage, across the
+//!   full retention hierarchy, per `i64`/`u64` measure that uses `tdigest`.
 //! - **Dimension/measure names must be `&'static str`** in the underlying `accreta` API
 //!   (`SchemaBuilder::dimension`, `SchemaBuilder::measure`). Since JS gives us owned, runtime
 //!   `String`s, we `Box::leak` them once at schema-build time. Schemas are normally built once at
@@ -29,7 +48,7 @@ use std::collections::HashMap;
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
-use accreta::aggregates::{Average, Count, Max, Min, Sum};
+use accreta::aggregates::{Average, Count, Max, Min, Sum, TDigest};
 use accreta::measures::{MeasureId, MeasureType, MeasureValue};
 use accreta::{BucketLevel, DimensionId, DimensionMask};
 
@@ -43,7 +62,9 @@ pub struct MeasureSpec {
     pub name: String,
     /// One of `"f64"`, `"i64"`, `"u64"`.
     pub value_type: String,
-    /// Subset of `"sum"`, `"count"`, `"min"`, `"max"`, `"average"`.
+    /// Subset of `"sum"`, `"count"`, `"min"`, `"max"`, `"average"`, `"tdigest"`. `"tdigest"`
+    /// works for any `valueType` — see the module docs' note on shadow measures for how `i64`/
+    /// `u64` measures get there.
     pub aggregates: Vec<String>,
 }
 
@@ -63,8 +84,34 @@ pub struct SchemaSpec {
     pub retention: Option<Vec<RetentionSpec>>,
 }
 
+/// Opaque handle onto a `TDigest`'s compressed state, letting JS query any quantile on demand
+/// instead of a fixed set of percentiles chosen ahead of time on the Rust side.
+///
+/// `quantile()` returns `f64::NAN` on an empty digest (no samples folded in yet) — same as the
+/// underlying `accreta::aggregates::TDigest::quantile`. Callers that need to distinguish "empty"
+/// from "a genuine NaN can't happen here" should track that on the JS side (e.g. by checking
+/// whether they've ingested anything for this group/measure yet).
+#[napi]
+pub struct TDigestHandle {
+    inner: TDigest,
+}
+
+#[napi]
+impl TDigestHandle {
+    /// Estimate the value at quantile `q` (`0.0..=1.0`).
+    #[napi]
+    pub fn quantile(&self, q: f64) -> f64 {
+        self.inner.quantile(q)
+    }
+}
+
 /// The subset of built-in aggregates that were actually registered for a measure.
 /// Fields that weren't registered (or have no data yet, for min/max/average) are `null`.
+///
+/// `tdigest` is deliberately *not* a field here — `TDigestHandle` is a `#[napi]` class, and class
+/// instances can't be embedded in a `#[napi(object)]` struct (the object macro derives
+/// `FromNapiValue` for every field, which class instances don't implement by value). Use
+/// `Engine::queryRangeTDigest` to fetch a `TDigestHandle` for a measure directly.
 #[napi(object)]
 pub struct AggregateResult {
     pub sum: Option<f64>,
@@ -113,6 +160,10 @@ pub struct Engine {
     // Mirrored dimension dictionaries — see module docs above for why these exist.
     dict_names: Vec<Vec<String>>,
     dict_lookup: Vec<HashMap<String, u32>>,
+    // `tdigest_shadow_id[i] = Some(shadow_id)` if measure `i` requested `tdigest` while not
+    // being `f64`-typed — see the module docs' "Shadow measures for cross-type tdigest" note.
+    // `None` covers both "no tdigest requested" and "tdigest registered directly (f64 measure)".
+    tdigest_shadow_id: Vec<Option<u8>>,
 }
 
 #[napi]
@@ -125,7 +176,9 @@ impl Engine {
             ));
         }
         if spec.measures.is_empty() {
-            return Err(Error::from_reason("schema must define at least one measure"));
+            return Err(Error::from_reason(
+                "schema must define at least one measure",
+            ));
         }
 
         let mut builder = accreta::Schema::builder();
@@ -136,10 +189,33 @@ impl Engine {
             builder.dimension(leaked);
         }
 
+        let mut needs_shadow = Vec::with_capacity(spec.measures.len());
         for measure in &spec.measures {
             let value_type = parse_value_type(&measure.value_type)?;
             let leaked: &'static str = Box::leak(measure.name.clone().into_boxed_str());
-            register_measure(&mut builder, leaked, value_type, &measure.aggregates)?;
+            let shadow = register_measure(&mut builder, leaked, value_type, &measure.aggregates)?;
+            needs_shadow.push(shadow);
+        }
+
+        // Shadow tdigest measures are registered *after* every real measure, in a second pass —
+        // never interleaved with the loop above — so real measures keep MeasureIds 0..N exactly
+        // matching spec.measures' order, which the rest of this file (ingest, buckets,
+        // query_range, ...) already assumes. Each shadow gets the next id after that, in the
+        // order its owning real measure appears in spec.measures. This relies on
+        // SchemaBuilder::measure assigning ids sequentially by call order, starting at 0 — the
+        // same assumption the rest of this file already makes for the real measures.
+        let mut tdigest_shadow_id = vec![None; spec.measures.len()];
+        let mut next_shadow_id = spec.measures.len() as u8;
+        for (idx, needs) in needs_shadow.iter().enumerate() {
+            if *needs {
+                let shadow_name: &'static str = Box::leak(
+                    format!("__tdigest_shadow__{}", spec.measures[idx].name).into_boxed_str(),
+                );
+                let mut smb = builder.measure::<f64>(shadow_name);
+                smb.with::<TDigest>();
+                tdigest_shadow_id[idx] = Some(next_shadow_id);
+                next_shadow_id += 1;
+            }
         }
 
         let schema = builder.build().map_err(to_napi_err)?;
@@ -157,6 +233,7 @@ impl Engine {
             measure_names,
             dict_names,
             dict_lookup,
+            tdigest_shadow_id,
         })
     }
 
@@ -214,6 +291,14 @@ impl Engine {
                 .data_type;
             measure_values.push(to_measure_value(*value, data_type));
         }
+        // Fan each shadowed value out to its tdigest shadow measure too, cast to f64. This must
+        // come after the loop above (real measures first) and in idx order, matching how shadow
+        // measures were registered in Engine::new — see tdigest_shadow_id's doc comment.
+        for (idx, value) in measures.iter().enumerate() {
+            if self.tdigest_shadow_id[idx].is_some() {
+                measure_values.push(MeasureValue::F64(*value));
+            }
+        }
 
         let timestamp = ms_to_datetime(timestamp_ms)?;
 
@@ -256,8 +341,11 @@ impl Engine {
             for (key, sets) in bucket.groups() {
                 let dimension_values = self.resolve_full_key(key.values());
 
-                let mut measures = Vec::with_capacity(sets.len());
-                for (idx, set) in sets.iter().enumerate() {
+                let mut measures = Vec::with_capacity(self.measure_names.len());
+                // .take(...) drops any shadow tdigest measures appended after the real ones —
+                // see tdigest_shadow_id's doc comment. Without this, `measures` here would have
+                // more entries than `measure_names`, breaking positional zipping on the JS side.
+                for (idx, set) in sets.iter().take(self.measure_names.len()).enumerate() {
                     let data_type = schema
                         .measure(MeasureId(idx as u8))
                         .expect("bucket measure sets are aligned with schema")
@@ -310,6 +398,52 @@ impl Engine {
             .map_err(to_napi_err)?;
 
         Ok(read_aggregates(&set, data_type))
+    }
+
+    /// Like `queryRange`, but for the `tdigest` aggregate specifically — returns a handle you can
+    /// call `.quantile(q)` on for any `q`, rather than a fixed set of precomputed percentiles.
+    /// `null` if `tdigest` wasn't registered on this measure, or if the range has no samples yet.
+    ///
+    /// Kept as its own method rather than a field on `AggregateResult` because `TDigestHandle` is
+    /// a class instance and can't be embedded in a `#[napi(object)]` result — see the doc comment
+    /// on `AggregateResult`.
+    #[napi]
+    pub fn query_range_tdigest(
+        &self,
+        level: String,
+        start_ms: f64,
+        end_ms: f64,
+        measure_index: u32,
+    ) -> Result<Option<TDigestHandle>> {
+        let level = parse_level(&level)?;
+        let start = ms_to_datetime(start_ms)?;
+        let end = ms_to_datetime(end_ms)?;
+
+        let idx = measure_index as usize;
+        let Some(shadow) = self.tdigest_shadow_id.get(idx) else {
+            return Err(Error::from_reason(format!(
+                "measure index {idx} out of range (schema has {} measures)",
+                self.measure_names.len()
+            )));
+        };
+        // If this measure requested tdigest on a non-f64 type, it lives on the shadow f64
+        // measure instead — see tdigest_shadow_id's doc comment. Otherwise (f64 measure with
+        // tdigest, or no tdigest requested at all) query the real measure id directly; in the
+        // "not requested" case `set.get::<TDigest>()` below just correctly returns `None`.
+        let query_id = match shadow {
+            Some(shadow_id) => MeasureId(*shadow_id),
+            None => MeasureId(measure_index as u8),
+        };
+
+        let set = self
+            .inner
+            .query_range(level, start, end, query_id)
+            .map_err(to_napi_err)?;
+
+        Ok(set
+            .get::<TDigest>()
+            .cloned()
+            .map(|inner| TDigestHandle { inner }))
     }
 
     /// Like `queryRange`, but grouped by the dimensions named in `groupBy`. An empty `groupBy`
@@ -438,12 +572,18 @@ fn parse_level(level: &str) -> Result<BucketLevel> {
 /// Only the fixed set of built-in aggregates is reachable from JS (same scope decision as
 /// `accreta-ffi`) — custom/generic aggregate state needs a Rust type at compile time, which a JS
 /// caller can't supply.
+///
+/// Returns `Ok(true)` if `aggregates` requested `"tdigest"` on a non-`f64` measure, meaning the
+/// caller (`Engine::new`) still needs to register a shadow `f64` measure for it — see that
+/// function's doc comment for why. Returns `Ok(false)` if no shadow is needed, either because
+/// `"tdigest"` wasn't requested at all, or because `value_type` is already `F64` (in which case
+/// `tdigest` is registered directly on `name`, right here, with no shadow required).
 fn register_measure(
     builder: &mut accreta::SchemaBuilder,
     name: &'static str,
     value_type: ValueType,
     aggregates: &[String],
-) -> Result<()> {
+) -> Result<bool> {
     macro_rules! register_all {
         ($mb:expr, $t:ty) => {
             for agg in aggregates {
@@ -463,9 +603,20 @@ fn register_measure(
                     "average" => {
                         $mb.with::<Average<$t>>();
                     }
+                    "tdigest" => {
+                        // Deliberately not registered here — see the per-ValueType branches
+                        // below. TDigest::Input is a fixed f64 (see its module docs), and
+                        // SchemaBuilder::with requires A::Input == T exactly, so `$mb.with::<
+                        // TDigest>()` only type-checks in the f64 instantiation of this macro.
+                        // Writing it here unconditionally would fail to compile for the i64/u64
+                        // instantiations even though this arm never runs for them at runtime —
+                        // Rust still type-checks macro-generated code for every value of $t it's
+                        // invoked with. This arm's only job is to keep "tdigest" recognized as a
+                        // valid name instead of falling through to the `other` error case below.
+                    }
                     other => {
                         return Err(Error::from_reason(format!(
-                            "unknown aggregate '{other}', expected one of: sum, count, min, max, average"
+                            "unknown aggregate '{other}', expected one of: sum, count, min, max, average, tdigest"
                         )));
                     }
                 }
@@ -473,22 +624,29 @@ fn register_measure(
         };
     }
 
+    let wants_tdigest = aggregates.iter().any(|a| a == "tdigest");
+
     match value_type {
         ValueType::F64 => {
             let mut mb = builder.measure::<f64>(name);
             register_all!(mb, f64);
+            if wants_tdigest {
+                // T == f64 == TDigest::Input already, so plain `with` works — no shadow needed.
+                mb.with::<TDigest>();
+            }
+            Ok(false)
         }
         ValueType::I64 => {
             let mut mb = builder.measure::<i64>(name);
             register_all!(mb, i64);
+            Ok(wants_tdigest)
         }
         ValueType::U64 => {
             let mut mb = builder.measure::<u64>(name);
             register_all!(mb, u64);
+            Ok(wants_tdigest)
         }
     }
-
-    Ok(())
 }
 
 fn build_retention(spec: &Option<Vec<RetentionSpec>>) -> Result<accreta::Retention> {
