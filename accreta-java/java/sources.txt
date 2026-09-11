@@ -1,0 +1,13 @@
+C:\Projects\accreta\accreta-java\java\src\main\java\com\accreta\AggregateSet.java
+C:\Projects\accreta\accreta-java\java\src\main\java\com\accreta\BucketLevel.java
+C:\Projects\accreta\accreta-java\java\src\main\java\com\accreta\Engine.java
+C:\Projects\accreta\accreta-java\java\src\main\java\com\accreta\IngestException.java
+C:\Projects\accreta\accreta-java\java\src\main\java\com\accreta\MeasureBuilder.java
+C:\Projects\accreta\accreta-java\java\src\main\java\com\accreta\NativeLibrary.java
+C:\Projects\accreta\accreta-java\java\src\main\java\com\accreta\Retention.java
+C:\Projects\accreta\accreta-java\java\src\main\java\com\accreta\Schema.java
+C:\Projects\accreta\accreta-java\java\src\main\java\com\accreta\SchemaBuilder.java
+C:\Projects\accreta\accreta-java\java\src\main\java\com\accreta\SchemaException.java
+C:\Projects\accreta\accreta-java\java\src\main\java\com\accreta\TDigest.java
+C:\Projects\accreta\accreta-java\java\src\main\java\com\accreta\examples\BasicUsageExample.java
+C:\Projects\accreta\accreta-java\java\src\main\java\com\accreta\examples\TDigestQuantilesExample.java

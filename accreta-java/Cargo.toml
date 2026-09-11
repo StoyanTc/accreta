@@ -1,0 +1,16 @@
+[package]
+name = "accreta-java"
+version = "0.1.0"
+edition = "2021"
+
+# Builds a cdylib so the JVM can `System.loadLibrary("accreta_java")`.
+# Adjust the path below to wherever `accreta` actually lives in your workspace
+# (same layout as accreta-node / accreta-ffi / accreta-py).
+[lib]
+name = "accreta_java"
+crate-type = ["cdylib"]
+
+[dependencies]
+accreta = { path = "../accreta" }
+jni = "0.21"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }

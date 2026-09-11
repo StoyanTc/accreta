@@ -1,0 +1,24 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.accreta</groupId>
+  <artifactId>accreta-java</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+
+  <properties>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <!--
+    No external dependencies: this module is pure JNI declarations plus the thin wrapper
+    classes, matching accreta-node's "no runtime framework" footprint on the Java side.
+
+    Packaging the compiled `libaccreta_java.{so,dylib,dll}` into the jar's resources (so
+    `System.loadLibrary` can find it without -Djava.library.path) is a follow-up — for now,
+    build the native crate first (`cargo build --release` in the parent directory) and point
+    -Djava.library.path at target/release when running.
+  -->
+</project>

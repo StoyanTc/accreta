@@ -12,7 +12,8 @@ accreta/
 ├── accreta-ffi/        # C ABI, used as the basis for the other bindings
 ├── accreta-node/        # Node.js bindings (napi-rs)
 ├── accreta-py/           # Python bindings (PyO3 / maturin)
-└── accreta-go/            # Go bindings (planned)
+├── accreta-java/           # Java bindings (JNI)
+└── accreta-go/               # Go bindings (planned)
 ```
 
 Each subdirectory is its own published package with its own README, changelog,
@@ -26,6 +27,7 @@ and version — see the table below for links and install instructions.
 | [`accreta-ffi`](./accreta-ffi) | C ABI | — | see crate |
 | [`accreta-node`](./accreta-node) | Node.js | npm | see package |
 | [`accreta-py`](./accreta-py) | Python | PyPI | see package |
+| [`accreta-java`](./accreta-java) | Java | — | see package |
 | [`accreta-go`](./accreta-go) | Go | — | planned |
 
 ## Development
