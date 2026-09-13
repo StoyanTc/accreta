@@ -31,7 +31,7 @@ def main() -> None:
     #    schema wouldn't get TDigest at all unless they too needed quantile queries.
     builder = accreta.SchemaBuilder()
     builder.dimension("route")
-    builder.measure("request_latency_ms", "f64", ["count", "average", "tdigest"])
+    builder.measure("request_latency_ms", "f64", ["count", "sum", "tdigest"])
     schema = builder.build()
 
     engine = accreta.Engine(schema)
@@ -57,7 +57,7 @@ def main() -> None:
 
     values = latency_set.values("f64")
     count = values["count"]
-    mean = values["average"]
+    mean = values["sum"] / count if count > 0 else 0
     p50 = latency_set.quantile("tdigest", 0.50)
     p95 = latency_set.quantile("tdigest", 0.95)
     p99 = latency_set.quantile("tdigest", 0.99)

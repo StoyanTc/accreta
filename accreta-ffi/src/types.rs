@@ -72,7 +72,6 @@ pub enum AccretaAggregateKind {
     Count = 1,
     Min = 2,
     Max = 3,
-    Average = 4,
     /// Approximate quantile sketch ([`accreta::aggregates::TDigest`]).
     ///
     /// Unlike every other kind here, `TDigest` doesn't reduce to one scalar value, so it is the
@@ -87,7 +86,7 @@ pub enum AccretaAggregateKind {
     /// between the aggregate's input type and the measure's declared type, and `TDigest`'s input
     /// is fixed at `f64`. Requesting it on an `I64`/`U64` measure fails with
     /// [`AccretaStatus::TypeMismatch`](crate::AccretaStatus::TypeMismatch).
-    TDigest = 5,
+    TDigest = 4,
 }
 
 /// Untagged payload for [`AccretaMeasureValue`]. Read the field matching the struct's `tag`;

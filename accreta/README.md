@@ -45,7 +45,7 @@ accreta = "0.1"
 
 ```rust
 use accreta::aggregate_set::Schema;
-use accreta::aggregates::{Average, Count, Max, Min, Sum};
+use accreta::aggregates::{Count, Max, Min, Sum};
 use accreta::bucket::BucketLevel;
 use accreta::engine::Engine;
 use chrono::{Duration, TimeZone, Utc};
@@ -59,8 +59,7 @@ builder
     .with::<Sum<f64>>()
     .with_any::<Count>()
     .with::<Min<f64>>()
-    .with::<Max<f64>>()
-    .with::<Average<f64>>();
+    .with::<Max<f64>>();
 let schema = builder.build().unwrap();
 
 let mut engine = Engine::new(schema);
@@ -88,7 +87,7 @@ assert_eq!(visits.get::<Count>().unwrap().value(), 2);
 
 That's the whole workflow: describe your measures, ingest, roll up, read. You don't need to know
 anything about how the merging works under the hood to use the built-in aggregates
-(`Sum`, `Count`, `Min`, `Max`, `Average`, `TDigest`).
+(`Sum`, `Count`, `Min`, `Max`, `TDigest`).
 
 You can also query a time range directly, merging whichever buckets already exist at a level
 without storing anything new:
@@ -110,7 +109,7 @@ ad-hoc queries and retention.
   levels, but the rollup path between them fans out rather than chaining straight through: `day`
   feeds both `week` and `month` directly, `week` never rolls up any further, and `month` feeds
   `year`. See `BucketLevel::rollup_targets` for the exact fan-out at each level.
-- **Pluggable aggregates** — `Sum`, `Count`, `Min`, `Max`, `Average`, and `TDigest` ship built
+- **Pluggable aggregates** — `Sum`, `Count`, `Min`, `Max`, and `TDigest` ship built
   in; you can add your own (e.g. running variance) without changing anything in the engine — see
   [Adding a custom aggregate](#adding-a-custom-aggregate) below.
 - **Approximate quantiles** — `TDigest` gives you `quantile(q)` estimates (p50, p95, p99, ...)
@@ -154,7 +153,7 @@ example that verifies the merge path and the single-update path agree.
 ## Approximate quantiles with TDigest
 
 `TDigest` is a built-in aggregate for estimating quantiles (medians, p95s, p99s, ...) without
-storing every raw sample. Unlike `Sum`, `Count`, `Min`, `Max`, and `Average` — all of which are
+storing every raw sample. Unlike `Sum`, `Count`, `Min`, and `Max` — all of which are
 *exact* — `TDigest` is a compressing sketch: its `Monoid` laws hold only within a
 compression-dependent error bound, not exactly. Two practical consequences:
 
@@ -178,7 +177,7 @@ let p99 = digest.quantile(0.99);
 
 `TDigest` is deliberately heavier than the other built-ins (heap-allocated centroid storage,
 buffered/lazy compression) and is meant to be registered only on the handful of measures that
-actually need quantiles — it's not a replacement for `Average`, which remains the cheap, exact,
+actually need quantiles, which remains the cheap, exact,
 general-purpose mean. Registering both on the same measure is a common pairing when you want
 "typical value" and "distribution shape" together. See
 [`examples/tdigest_quantiles.rs`](examples/tdigest_quantiles.rs) for a complete walkthrough.
@@ -209,7 +208,7 @@ the only place data leaves the engine.
 | `monoid` | The `Monoid` trait: how two states combine |
 | `aggregator` | The `Aggregator` trait: how one sample folds into a state |
 | `erased` | Type-erasure so heterogeneous aggregates can share a collection |
-| `aggregates` | Built-in aggregates: `Sum`, `Count`, `Min`, `Max`, `Average`, `TDigest` |
+| `aggregates` | Built-in aggregates: `Sum`, `Count`, `Min`, `Max`, `TDigest` |
 | `aggregate_set` | `Schema` + `AggregateSet`: a named collection of states |
 | `dimensions` | `DimensionId`, `DimensionMask`, `DimensionKey`, and their dictionaries |
 | `measures` | `MeasureId`, `MeasureType`, `MeasureValue`, and the `MeasureNumber`/`FromValue` traits |

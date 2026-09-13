@@ -17,7 +17,7 @@ def main() -> None:
     # 1. Describe which aggregates every bucket should track.
     builder = accreta.SchemaBuilder()
     builder.dimension("browser")
-    builder.measure("visits", "f64", ["sum", "count", "min", "max", "average"])
+    builder.measure("visits", "f64", ["sum", "count", "min", "max"])
     schema = builder.build()
 
     engine = accreta.Engine(schema)
@@ -57,11 +57,13 @@ def main() -> None:
         )
         for key, agg_set in grouped.items():
             values = agg_set.values("f64")
+            sum = values['sum']
+            count = values['count']
             print(
                 f"  [dim_ids={key.values} {hour_start:%H:%M} .. {hour_end:%H:%M}) "
-                f"sum={values['sum']:>6.2f} count={values['count']:<2} "
+                f"sum={sum:>6.2f} count={count:<2} "
                 f"min={values['min']:>5.2f} max={values['max']:>5.2f} "
-                f"avg={values['average']:>5.2f}"
+                f"avg={sum / count if count > 0 else 0:>5.2f}"
             )
 
     # 5. Whole-day total (rolled all the way up) — one merged group across the full day.
@@ -70,7 +72,9 @@ def main() -> None:
     day_end = day_start + timedelta(days=1)
     day_total = engine.query_range("day", day_start, day_end, measure_index=0)
     values = day_total.values("f64")
-    print(f"  count={values['count']} sum={values['sum']:.2f} average={values['average']:.2f}")
+    sum = values['sum']
+    count = values['count']
+    print(f"  count={count} sum={sum:.2f} average={sum / count if count > 0 else 0:.2f}")
 
     # 6. Ad-hoc range queries merge whichever buckets already exist at a given level, without
     #    storing anything new — handy for "give me the last N hours" style queries.

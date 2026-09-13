@@ -10,12 +10,12 @@
 //! same pattern as here, mirroring the `register_measure_f64/i64/u64` split you already have in
 //! accreta-ffi's `schema.rs`.
 
-use jni::JNIEnv;
 use jni::objects::{JClass, JString};
 use jni::sys::jlong;
+use jni::JNIEnv;
 
 use accreta::aggregate_set::{MeasureBuilder, Schema, SchemaBuilder};
-use accreta::aggregates::{Average, Count, Max, Min, Sum, TDigest};
+use accreta::aggregates::{Count, Max, Min, Sum, TDigest};
 
 use crate::error::throw_schema_error;
 use crate::handles::{borrow_mut, drop_handle, into_handle, take_handle};
@@ -25,7 +25,10 @@ use crate::handles::{borrow_mut, drop_handle, into_handle, take_handle};
 // ---------------------------------------------------------------------------------------------
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_accreta_SchemaBuilder_nativeNew(_env: JNIEnv, _class: JClass) -> jlong {
+pub extern "system" fn Java_com_accreta_SchemaBuilder_nativeNew(
+    _env: JNIEnv,
+    _class: JClass,
+) -> jlong {
     into_handle(SchemaBuilder::default())
 }
 
@@ -70,7 +73,8 @@ pub extern "system" fn Java_com_accreta_SchemaBuilder_nativeMeasureF64(
     // call until this measure-builder handle is consumed via `nativeWith*`/`nativeDone` — the
     // Java `MeasureBuilder` wrapper enforces this by holding a reference to its parent
     // `SchemaBuilder` and only returning it again from `done()`.
-    let measure_builder: MeasureBuilder<'static, f64> = unsafe { std::mem::transmute(measure_builder) };
+    let measure_builder: MeasureBuilder<'static, f64> =
+        unsafe { std::mem::transmute(measure_builder) };
     into_handle(measure_builder)
 }
 
@@ -88,7 +92,11 @@ pub extern "system" fn Java_com_accreta_SchemaBuilder_nativeBuild(
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_accreta_SchemaBuilder_nativeDrop(_env: JNIEnv, _class: JClass, handle: jlong) {
+pub extern "system" fn Java_com_accreta_SchemaBuilder_nativeDrop(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) {
     unsafe { drop_handle::<SchemaBuilder>(handle) };
 }
 
@@ -106,16 +114,39 @@ macro_rules! with_aggregate {
     };
 }
 
-with_aggregate!(Java_com_accreta_MeasureBuilder_nativeWithSum, Sum<f64>, with);
-with_aggregate!(Java_com_accreta_MeasureBuilder_nativeWithAverage, Average<f64>, with);
-with_aggregate!(Java_com_accreta_MeasureBuilder_nativeWithMin, Min<f64>, with);
-with_aggregate!(Java_com_accreta_MeasureBuilder_nativeWithMax, Max<f64>, with);
-with_aggregate!(Java_com_accreta_MeasureBuilder_nativeWithTDigest, TDigest, with);
+with_aggregate!(
+    Java_com_accreta_MeasureBuilder_nativeWithSum,
+    Sum<f64>,
+    with
+);
+with_aggregate!(
+    Java_com_accreta_MeasureBuilder_nativeWithMin,
+    Min<f64>,
+    with
+);
+with_aggregate!(
+    Java_com_accreta_MeasureBuilder_nativeWithMax,
+    Max<f64>,
+    with
+);
+with_aggregate!(
+    Java_com_accreta_MeasureBuilder_nativeWithTDigest,
+    TDigest,
+    with
+);
 // Count ignores the value entirely, so it goes through `with_any` rather than `with`.
-with_aggregate!(Java_com_accreta_MeasureBuilder_nativeWithCount, Count, with_any);
+with_aggregate!(
+    Java_com_accreta_MeasureBuilder_nativeWithCount,
+    Count,
+    with_any
+);
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_accreta_MeasureBuilder_nativeDone(_env: JNIEnv, _class: JClass, handle: jlong) {
+pub extern "system" fn Java_com_accreta_MeasureBuilder_nativeDone(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) {
     // `done(self) -> &'a mut SchemaBuilder` — we don't need the returned reference (the Java
     // `MeasureBuilder` already holds its own reference back to the owning `SchemaBuilder`
     // object), we just need this call to consume the box and end the erased borrow.
@@ -148,6 +179,10 @@ pub extern "system" fn Java_com_accreta_Schema_nativeMeasureCount(
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_accreta_Schema_nativeDrop(_env: JNIEnv, _class: JClass, handle: jlong) {
+pub extern "system" fn Java_com_accreta_Schema_nativeDrop(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) {
     unsafe { drop_handle::<Schema>(handle) };
 }

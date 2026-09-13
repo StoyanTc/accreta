@@ -55,7 +55,6 @@ int main(void)
         ACCRETA_AGGREGATE_KIND_COUNT,
         ACCRETA_AGGREGATE_KIND_MIN,
         ACCRETA_AGGREGATE_KIND_MAX,
-        ACCRETA_AGGREGATE_KIND_AVERAGE
     };
 
     /* measure id 0 = "cpu" (registration order determines the id you pass to
@@ -145,19 +144,18 @@ int main(void)
     check(accreta_aggregate_set_get_value(
               result, ACCRETA_AGGREGATE_KIND_SUM, ACCRETA_MEASURE_TYPE_F64, &value),
           "get cpu sum");
-    printf("CPU sum: %.2f\n", value.value.f64);
+    double  sum = value.value.f64;
+    printf("CPU sum: %.2f\n", sum);
 
     /* Count is always u64, regardless of the measure's own type. */
     check(accreta_aggregate_set_get_value(
               result, ACCRETA_AGGREGATE_KIND_COUNT, ACCRETA_MEASURE_TYPE_F64, &value),
           "get cpu count");
-    printf("CPU count: %llu\n", (unsigned long long)value.value.u64);
+    unsigned long long count = value.value.u64;
+    printf("CPU count: %llu\n", count);
 
     /* Average is always f64, regardless of the measure's own type. */
-    check(accreta_aggregate_set_get_value(
-              result, ACCRETA_AGGREGATE_KIND_AVERAGE, ACCRETA_MEASURE_TYPE_F64, &value),
-          "get cpu average");
-    printf("CPU average: %.2f\n", value.value.f64);
+    printf("CPU average: %.2f\n", count == 0 ? 0 : sum / count);
 
     accreta_aggregate_set_free(result);
 

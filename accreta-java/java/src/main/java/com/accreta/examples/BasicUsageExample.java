@@ -30,7 +30,6 @@ public final class BasicUsageExample {
                     .withCount()
                     .withMin()
                     .withMax()
-                    .withAverage()
                     .done();
             schema = builder.build();
         }
@@ -59,7 +58,7 @@ public final class BasicUsageExample {
                             hourStart, hourEnd,
                             hourSet.getSum(), hourSet.getCount(),
                             hourSet.getMin().orElse(Double.NaN), hourSet.getMax().orElse(Double.NaN),
-                            hourSet.getAverage());
+                            hourSet.getCount() == 0 ? Double.NaN : hourSet.getSum() / hourSet.getCount());
                 }
             }
 
@@ -67,7 +66,7 @@ public final class BasicUsageExample {
             Instant dayStart = start.truncatedTo(ChronoUnit.DAYS);
             try (AggregateSet dayTotal = engine.queryRange(BucketLevel.DAY, dayStart, dayStart.plus(Duration.ofDays(1)), 0)) {
                 System.out.printf("  count=%d sum=%.2f average=%.2f%n",
-                        dayTotal.getCount(), dayTotal.getSum(), dayTotal.getAverage());
+                        dayTotal.getCount(), dayTotal.getSum(), dayTotal.getCount() == 0 ? Double.NaN : dayTotal.getSum() / dayTotal.getCount());
             }
 
             // 5. Ad-hoc range query, same as the Rust original — merges whichever bucket states

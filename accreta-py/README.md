@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 # 1. Describe which aggregates every bucket should track.
 builder = accreta.SchemaBuilder()
 builder.dimension("browser")
-builder.measure("visits", "f64", ["sum", "count", "min", "max", "average"])
+builder.measure("visits", "f64", ["sum", "count", "min", "max"])
 schema = builder.build()
 
 engine = accreta.Engine(schema)
@@ -62,7 +62,7 @@ result = engine.query_range("hour", t0, t0, measure_index=0)
 | `MeasureId` | `accreta::measures::MeasureId` | rarely needed directly — most methods take a plain `measure_index: int` instead |
 
 `dtype` strings throughout are `"i64"`, `"u64"`, or `"f64"`. Aggregate name strings are `"sum"`,
-`"min"`, `"max"`, `"count"`, `"average"`.
+`"min"`, `"max"`, `"count"`.
 
 ### Errors
 

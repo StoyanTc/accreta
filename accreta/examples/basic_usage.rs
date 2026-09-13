@@ -7,7 +7,7 @@
 //! ```
 
 use accreta::aggregate_set::Schema;
-use accreta::aggregates::{Average, Count, Max, Min, Sum};
+use accreta::aggregates::{Count, Max, Min, Sum};
 use accreta::bucket::BucketLevel;
 use accreta::engine::Engine;
 use accreta::measures::MeasureId;
@@ -26,8 +26,7 @@ fn main() {
         .with::<Sum<f64>>()
         .with_any::<Count>()
         .with::<Min<f64>>()
-        .with::<Max<f64>>()
-        .with::<Average<f64>>();
+        .with::<Max<f64>>();
     let schema = builder.build().unwrap();
 
     let mut engine = Engine::new(schema.clone());
@@ -68,17 +67,19 @@ fn main() {
             let dim_key = group.0;
             let aggs = group.1;
             for agg in aggs {
-                let avg = agg.get::<Average<f64>>().unwrap();
+                let sum = agg.get::<Sum<f64>>().unwrap().value();
+                let cnt = agg.get::<Count>().unwrap().value();
+                let avg = if cnt > 0 { sum / cnt as f64 } else { 0.0 };
                 println!(
                     "  [{:?} {} .. {}) sum={:>6.2} count={:<2} min={:>5.2} max={:>5.2} avg={:>5.2}",
                     dim_key.values(),
                     bucket.start().format("%H:%M"),
                     bucket.end().format("%H:%M"),
-                    agg.get::<Sum<f64>>().unwrap().value(),
-                    agg.get::<Count>().unwrap().value(),
+                    sum,
+                    cnt,
                     agg.get::<Min<f64>>().unwrap().value().unwrap(),
                     agg.get::<Max<f64>>().unwrap().value().unwrap(),
-                    avg.sum() / avg.count() as f64
+                    avg
                 );
             }
         }
@@ -89,13 +90,10 @@ fn main() {
     let day = engine.bucket(BucketLevel::Day, day_start).unwrap();
     let aggs = day.groups().next().unwrap().1;
     for agg in aggs {
-        let avg = agg.get::<Average<f64>>().unwrap();
-        println!(
-            "  count={} sum={:.2} average={:.2}",
-            agg.get::<Count>().unwrap().value(),
-            agg.get::<Sum<f64>>().unwrap().value(),
-            avg.sum() / avg.count() as f64,
-        );
+        let sum = agg.get::<Sum<f64>>().unwrap().value();
+        let cnt = agg.get::<Count>().unwrap().value();
+        let avg = if cnt > 0 { sum / cnt as f64 } else { 0.0 };
+        println!("  count={} sum={:.2} average={:.2}", sum, cnt, avg,);
     }
 
     // 5. Ad-hoc range queries merge whichever buckets already exist at a given level, without

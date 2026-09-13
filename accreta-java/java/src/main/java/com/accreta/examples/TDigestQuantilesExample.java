@@ -23,7 +23,7 @@ public final class TDigestQuantilesExample {
             builder.dimension("route");
             builder.measureF64("request_latency_ms")
                     .withCount()
-                    .withAverage()
+                    .withSum()
                     .withTDigest()
                     .done();
             schema = builder.build();
@@ -50,7 +50,7 @@ public final class TDigestQuantilesExample {
                     BucketLevel.HOUR, hourStart, hourStart.plus(Duration.ofHours(1)), /* measureId */ 0)) {
 
                 long count = latencySet.getCount();
-                double mean = latencySet.getAverage();
+                double mean = count == 0 ? Double.NaN : latencySet.getSum() / count;
 
                 System.out.println("samples ingested : " + count);
                 System.out.printf("exact mean       : %.1f ms%n", mean);

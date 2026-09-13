@@ -2,7 +2,7 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 
 use accreta::aggregate_set::{Schema, SchemaBuilder};
-use accreta::aggregates::{Average, Count, Max, Min, Sum, TDigest};
+use accreta::aggregates::{Count, Max, Min, Sum, TDigest};
 use accreta::measures::MeasureId;
 
 use crate::AccretaAggregateKind;
@@ -117,9 +117,6 @@ fn register_measure_i64(
             AccretaAggregateKind::Max => {
                 measure.with::<Max<i64>>();
             }
-            AccretaAggregateKind::Average => {
-                measure.with::<Average<i64>>();
-            }
             AccretaAggregateKind::TDigest => {
                 // Unreachable: accreta_schema_builder_add_measure rejects TDigest on a non-F64
                 // measure before this function is ever called (with::<A>() below requires an
@@ -150,9 +147,6 @@ fn register_measure_u64(
             AccretaAggregateKind::Max => {
                 measure.with::<Max<u64>>();
             }
-            AccretaAggregateKind::Average => {
-                measure.with::<Average<u64>>();
-            }
             AccretaAggregateKind::TDigest => {
                 // Unreachable — see the identical comment in register_measure_i64.
                 unreachable!("add_measure validates TDigest is only requested for F64 measures");
@@ -180,9 +174,6 @@ fn register_measure_f64(
             }
             AccretaAggregateKind::Max => {
                 measure.with::<Max<f64>>();
-            }
-            AccretaAggregateKind::Average => {
-                measure.with::<Average<f64>>();
             }
             AccretaAggregateKind::TDigest => {
                 measure.with::<TDigest>();

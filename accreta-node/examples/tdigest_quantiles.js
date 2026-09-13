@@ -18,7 +18,7 @@ const engine = new Engine({
     {
       name: "request_latency_ms",
       valueType: "f64",
-      aggregates: ["count", "average", "tdigest"],
+      aggregates: ["count", "sum", "tdigest"],
     },
   ],
 });
@@ -45,7 +45,7 @@ const hourEnd = hourStart + 60 * 60_000;
 // 4. Read back the exact aggregates via queryRange, and the digest via the separate
 //    queryRangeTDigest — tdigest isn't a field on AggregateResult (see Engine's module docs
 //    for why: a quantile estimate needs a `q` parameter at query time, so it can't be
-//    flattened into a plain number the way sum/min/max/average are).
+//    flattened into a plain number the way sum/min/max/count are).
 const stats = engine.queryRange("hour", hourStart, hourEnd, 0);
 const digest = engine.queryRangeTdigest("hour", hourStart, hourEnd, 0);
 
@@ -53,15 +53,19 @@ if (!digest) {
   throw new Error("expected a tdigest for request_latency_ms");
 }
 
-console.log(`samples ingested : ${stats.count}`);
-console.log(`exact mean       : ${stats.average.toFixed(1)} ms`);
+const sum = stats.sum;
+const count = stats.count;
+const average = count == 0 ? 0 : sum / count;
+
+console.log(`samples ingested : ${count}`);
+console.log(`exact mean       : ${average} ms`);
 console.log(`p50 (median)     : ${digest.quantile(0.5).toFixed(1)} ms`);
 console.log(`p95              : ${digest.quantile(0.95).toFixed(1)} ms`);
 console.log(`p99              : ${digest.quantile(0.99).toFixed(1)} ms`);
 
 // Same illustration as the Rust example: the mean is dragged upward by the outliers
 // (100, 250, 500 ms) far more than the median is.
-if (!(digest.quantile(0.5) < stats.average)) {
+if (!(digest.quantile(0.5) < average)) {
   throw new Error("median should sit below the outlier-skewed mean");
 }
 

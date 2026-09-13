@@ -6,14 +6,12 @@
 //! to support a new one. See the crate-level docs and the `custom_aggregate` example for how to
 //! add your own (e.g. Variance, t-Digest, HyperLogLog, Bloom filter, Top-K).
 
-mod average;
 mod count;
 mod max;
 mod min;
 mod sum;
 mod tdigest;
 
-pub use average::Average;
 pub use count::Count;
 pub use max::Max;
 pub use min::Min;

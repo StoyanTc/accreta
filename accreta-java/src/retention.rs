@@ -6,9 +6,9 @@
 //! `SchemaBuilder`/`MeasureBuilder` do.
 
 use chrono::Duration;
-use jni::JNIEnv;
 use jni::objects::JClass;
 use jni::sys::{jint, jlong};
+use jni::JNIEnv;
 
 use accreta::bucket::BucketLevel;
 use accreta::retention::Retention;
@@ -40,6 +40,10 @@ pub extern "system" fn Java_com_accreta_Retention_nativeKeep(
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_accreta_Retention_nativeDrop(_env: JNIEnv, _class: JClass, handle: jlong) {
+pub extern "system" fn Java_com_accreta_Retention_nativeDrop(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) {
     unsafe { drop_handle::<Retention>(handle) };
 }

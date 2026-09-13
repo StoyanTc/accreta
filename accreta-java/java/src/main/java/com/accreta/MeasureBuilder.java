@@ -29,12 +29,6 @@ public final class MeasureBuilder implements AutoCloseable {
         return this;
     }
 
-    public MeasureBuilder withAverage() {
-        checkOpen();
-        nativeWithAverage(handle);
-        return this;
-    }
-
     public MeasureBuilder withMin() {
         checkOpen();
         nativeWithMin(handle);
@@ -80,8 +74,6 @@ public final class MeasureBuilder implements AutoCloseable {
     private static native void nativeWithSum(long handle);
 
     private static native void nativeWithCount(long handle);
-
-    private static native void nativeWithAverage(long handle);
 
     private static native void nativeWithMin(long handle);
 

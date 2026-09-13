@@ -10,7 +10,7 @@ use jni::sys::{jboolean, jdouble, jlong, JNI_FALSE, JNI_TRUE};
 use jni::JNIEnv;
 
 use accreta::aggregate_set::AggregateSet;
-use accreta::aggregates::{Average, Count, Max, Min, Sum, TDigest};
+use accreta::aggregates::{Count, Max, Min, Sum, TDigest};
 
 use crate::handles::{borrow, drop_handle};
 
@@ -45,30 +45,6 @@ pub extern "system" fn Java_com_accreta_AggregateSet_nativeGetCount(
 ) -> jlong {
     let set: &AggregateSet = unsafe { borrow(handle) };
     set.get::<Count>().map(|c| c.value()).unwrap_or(0) as jlong
-}
-
-/// Average<f64>.sum() — paired with `nativeGetAverageCount` because the Rust side exposes the
-/// running sum/count rather than a single `mean()` method (see the `tdigest_quantiles.rs`
-/// example: `avg.sum() / avg.count() as f64`). The Java `AggregateSet.getAverage()` wrapper does
-/// that division for you.
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_accreta_AggregateSet_nativeGetAverageSum(
-    _env: JNIEnv,
-    _class: JClass,
-    handle: jlong,
-) -> jdouble {
-    let set: &AggregateSet = unsafe { borrow(handle) };
-    set.get::<Average<f64>>().map(|a| a.sum()).unwrap_or(0.0)
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_accreta_AggregateSet_nativeGetAverageCount(
-    _env: JNIEnv,
-    _class: JClass,
-    handle: jlong,
-) -> jlong {
-    let set: &AggregateSet = unsafe { borrow(handle) };
-    set.get::<Average<f64>>().map(|a| a.count()).unwrap_or(0) as jlong
 }
 
 /// Min<f64>.value(). `Min`'s own value is `Option<f64>` (empty until the first sample), so this

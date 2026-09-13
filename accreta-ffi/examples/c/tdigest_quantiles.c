@@ -1,7 +1,7 @@
 // examples/tdigest_quantiles/tdigest_quantiles.c
 //
 // Approximate quantiles with TDigest, through the accreta-ffi C ABI — mirrors the Rust
-// `tdigest_quantiles` example: register TDigest alongside Count and Average on a "latency"
+// `tdigest_quantiles` example: register TDigest alongside Count and Sum on a "latency"
 // measure, ingest a spread of samples across several minutes, roll up to an hour bucket, and
 // read back quantile estimates with accreta_aggregate_set_get_quantile.
 //
@@ -33,7 +33,7 @@ static void check(AccretaStatus status, const char *what) {
 }
 
 int main(void) {
-    // 1. Register TDigest alongside Count and Average on the same measure. TDigest is
+    // 1. Register TDigest alongside Count and Sum on the same measure. TDigest is
     //    deliberately heavier than the exact aggregates, so in a real schema you'd register it
     //    only on the measures that actually need quantiles — Average stays the cheap, exact
     //    general-purpose mean for the same measure.
@@ -41,8 +41,8 @@ int main(void) {
     check(accreta_schema_builder_add_dimension(builder, "route"), "add_dimension");
 
     AccretaAggregateKind kinds[] = {
+        ACCRETA_AGGREGATE_KIND_SUM,
         ACCRETA_AGGREGATE_KIND_COUNT,
-        ACCRETA_AGGREGATE_KIND_AVERAGE,
         ACCRETA_AGGREGATE_KIND_T_DIGEST,
     };
     check(
@@ -115,19 +115,20 @@ int main(void) {
             latency_set, ACCRETA_AGGREGATE_KIND_COUNT, ACCRETA_MEASURE_TYPE_F64, &count_value),
         "get_value(Count)");
 
-    AccretaMeasureValue mean_value;
+    AccretaMeasureValue sum_value;
     check(
         accreta_aggregate_set_get_value(
-            latency_set, ACCRETA_AGGREGATE_KIND_AVERAGE, ACCRETA_MEASURE_TYPE_F64, &mean_value),
-        "get_value(Average)");
+            latency_set, ACCRETA_AGGREGATE_KIND_SUM, ACCRETA_MEASURE_TYPE_F64, &sum_value),
+        "get_value(Sum)");
 
     double p50, p95, p99;
     check(accreta_aggregate_set_get_quantile(latency_set, 0.50, &p50), "get_quantile(p50)");
     check(accreta_aggregate_set_get_quantile(latency_set, 0.95, &p95), "get_quantile(p95)");
     check(accreta_aggregate_set_get_quantile(latency_set, 0.99, &p99), "get_quantile(p99)");
 
+    double mean_value = count_value.value.u64 == 0 ? 0 : sum_value.value.f64 / count_value.value.f64;
     printf("samples ingested : %llu\n", (unsigned long long)count_value.value.u64);
-    printf("exact mean       : %.1f ms\n", mean_value.value.f64);
+    printf("exact mean       : %.1f ms\n", mean_value);
     printf("p50 (median)     : %.1f ms\n", p50);
     printf("p95              : %.1f ms\n", p95);
     printf("p99              : %.1f ms\n", p99);
@@ -135,7 +136,7 @@ int main(void) {
     // The mean is dragged upward by the outliers (100, 250, 500 ms) far more than the median
     // is — a good illustration of why you'd want both an exact mean *and* quantiles on the same
     // measure rather than relying on the mean alone to characterize latency.
-    if (!(p50 < mean_value.value.f64)) {
+    if (!(p50 < mean_value)) {
         fprintf(stderr, "expected median to sit below the outlier-skewed mean\n");
         return 1;
     }

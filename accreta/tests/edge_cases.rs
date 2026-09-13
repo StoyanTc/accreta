@@ -8,7 +8,7 @@
 //! should carry over regardless.
 
 use accreta::aggregate_set::Schema;
-use accreta::aggregates::{Average, Count, Max, Min, Sum};
+use accreta::aggregates::{Count, Max, Min, Sum};
 use accreta::bucket::BucketLevel;
 use accreta::engine::Engine;
 use accreta::measures::MeasureId;
@@ -230,8 +230,7 @@ fn average_reflects_merged_sum_and_count_not_average_of_averages() {
         .dimension("host")
         .measure("value")
         .with::<Sum<f64>>()
-        .with_any::<Count>()
-        .with::<Average<f64>>();
+        .with_any::<Count>();
     let schema = builder.build().unwrap();
     let mut engine = Engine::new(schema);
 
@@ -261,8 +260,8 @@ fn average_reflects_merged_sum_and_count_not_average_of_averages() {
         .bucket(BucketLevel::Hour, BucketLevel::Hour.truncate(t0))
         .unwrap();
     let (_, sets) = hour.groups().next().unwrap();
-    let avg = sets[0].get::<Average<f64>>().unwrap();
-    let avg_val = avg.sum() / avg.count() as f64;
+    let avg_val = sets[0].get::<Sum<f64>>().unwrap().value()
+        / (sets[0].get::<Count>().unwrap().value() as f64);
 
     // Correct: (10 + 1 + 1 + 1) / 4 = 3.25
     // Wrong (naive average-of-averages): (10 + 1) / 2 = 5.5

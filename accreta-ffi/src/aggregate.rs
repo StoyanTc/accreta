@@ -1,5 +1,5 @@
 use accreta::aggregate_set::AggregateSet;
-use accreta::aggregates::{Average, Count, Max, Min, Sum, TDigest};
+use accreta::aggregates::{Count, Max, Min, Sum, TDigest};
 use accreta::measures::MeasureType;
 
 use crate::error::{AccretaStatus, fail};
@@ -85,16 +85,6 @@ fn extract_value(
             .get::<Max<f64>>()
             .and_then(|s| s.value())
             .map(AccretaMeasureValue::f64),
-
-        (K::Average, M::I64) => set
-            .get::<Average<i64>>()
-            .map(|s| AccretaMeasureValue::f64((s.sum() / s.count() as i64) as f64)),
-        (K::Average, M::U64) => set
-            .get::<Average<u64>>()
-            .map(|s| AccretaMeasureValue::f64((s.sum() / s.count()) as f64)),
-        (K::Average, M::F64) => set
-            .get::<Average<f64>>()
-            .map(|s| AccretaMeasureValue::f64(s.sum() / s.count() as f64)),
 
         (K::TDigest, M::I64 | M::U64 | M::F64) => None,
     }

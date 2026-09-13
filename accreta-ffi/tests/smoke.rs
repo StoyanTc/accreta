@@ -28,7 +28,6 @@ fn fun_name() {
             AccretaAggregateKind::Count,
             AccretaAggregateKind::Min,
             AccretaAggregateKind::Max,
-            AccretaAggregateKind::Average,
         ];
         let status = accreta_schema_builder_add_measure(
             builder,
@@ -122,23 +121,6 @@ fn fun_name() {
             last_err()
         );
         assert_eq!(count_val.value.u64, 2);
-        let mut avg_val = AccretaMeasureValue {
-            tag: AccretaMeasureType::F64,
-            value: AccretaMeasureValueData { f64: 0.0 },
-        };
-        let status = accreta_aggregate_set_get_value(
-            set,
-            AccretaAggregateKind::Average,
-            AccretaMeasureType::F64,
-            &mut avg_val,
-        );
-        assert_eq!(
-            status,
-            AccretaStatus::Ok,
-            "get average failed: {:?}",
-            last_err()
-        );
-        assert_eq!(avg_val.value.f64, 10.0);
         accreta_aggregate_set_free(set);
         // Bucket + group cursor round trip.
         let mut bucket: *mut AccretaBucket = ptr::null_mut();

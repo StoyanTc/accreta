@@ -1,9 +1,9 @@
 //! JNI natives backing `com.accreta.Engine`.
 
 use chrono::{TimeZone, Utc};
-use jni::JNIEnv;
 use jni::objects::{JClass, JObjectArray, JString};
 use jni::sys::{jdouble, jint, jlong, jlongArray};
+use jni::JNIEnv;
 
 use accreta::aggregate_set::Schema;
 use accreta::bucket::BucketLevel;
@@ -30,7 +30,11 @@ pub(crate) fn bucket_level_from_ordinal(ordinal: jint) -> BucketLevel {
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_accreta_Engine_nativeNew(_env: JNIEnv, _class: JClass, schema_handle: jlong) -> jlong {
+pub extern "system" fn Java_com_accreta_Engine_nativeNew(
+    _env: JNIEnv,
+    _class: JClass,
+    schema_handle: jlong,
+) -> jlong {
     // Schema is cheap to clone (Arc-backed) — mirrors how accreta-node hands the same Schema to
     // more than one Engine without transferring ownership of the Java-side Schema object.
     let schema: &Schema = unsafe { borrow(schema_handle) };
@@ -52,7 +56,11 @@ pub extern "system" fn Java_com_accreta_Engine_nativeNewWithRetention(
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_accreta_Engine_nativeDrop(_env: JNIEnv, _class: JClass, handle: jlong) {
+pub extern "system" fn Java_com_accreta_Engine_nativeDrop(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) {
     unsafe { drop_handle::<Engine>(handle) };
 }
 
@@ -71,7 +79,10 @@ pub extern "system" fn Java_com_accreta_Engine_nativeIngest<'local>(
     let timestamp = match Utc.timestamp_millis_opt(epoch_millis).single() {
         Some(t) => t,
         None => {
-            let _ = env.throw_new("com/accreta/IngestException", format!("invalid timestamp: {epoch_millis} ms since epoch"));
+            let _ = env.throw_new(
+                "com/accreta/IngestException",
+                format!("invalid timestamp: {epoch_millis} ms since epoch"),
+            );
             return;
         }
     };
@@ -88,7 +99,10 @@ pub extern "system" fn Java_com_accreta_Engine_nativeIngest<'local>(
             .get_object_array_element(&dimensions, i as jint)
             .expect("reading dimensions array element");
         let jstr = JString::from(element);
-        let s: String = env.get_string(&jstr).expect("dimension value is not valid UTF-8").into();
+        let s: String = env
+            .get_string(&jstr)
+            .expect("dimension value is not valid UTF-8")
+            .into();
         dim_values.push(s);
     }
 
@@ -99,13 +113,21 @@ pub extern "system" fn Java_com_accreta_Engine_nativeIngest<'local>(
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_accreta_Engine_nativeRollup(_env: JNIEnv, _class: JClass, handle: jlong) {
+pub extern "system" fn Java_com_accreta_Engine_nativeRollup(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) {
     let engine: &mut Engine = unsafe { borrow_mut(handle) };
     engine.rollup();
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_accreta_Engine_nativePrune(_env: JNIEnv, _class: JClass, handle: jlong) {
+pub extern "system" fn Java_com_accreta_Engine_nativePrune(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) {
     let engine: &mut Engine = unsafe { borrow_mut(handle) };
     engine.prune();
 }
@@ -134,8 +156,14 @@ pub extern "system" fn Java_com_accreta_Engine_nativeQueryRange(
     measure_id: jint,
 ) -> jlong {
     let level = bucket_level_from_ordinal(level_ordinal);
-    let range_start = Utc.timestamp_millis_opt(range_start_millis).single().expect("valid range_start");
-    let range_end = Utc.timestamp_millis_opt(range_end_millis).single().expect("valid range_end");
+    let range_start = Utc
+        .timestamp_millis_opt(range_start_millis)
+        .single()
+        .expect("valid range_start");
+    let range_end = Utc
+        .timestamp_millis_opt(range_end_millis)
+        .single()
+        .expect("valid range_end");
 
     let engine: &Engine = unsafe { borrow(handle) };
     match engine.query_range(level, range_start, range_end, MeasureId(measure_id as u8)) {

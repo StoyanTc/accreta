@@ -15,7 +15,7 @@
 
 use accreta::Aggregator;
 use accreta::aggregate_set::Schema;
-use accreta::aggregates::{Average, Count, TDigest};
+use accreta::aggregates::{Count, Sum, TDigest};
 use accreta::bucket::BucketLevel;
 use accreta::engine::Engine;
 use accreta::measures::MeasureId;
@@ -33,7 +33,7 @@ fn main() {
         .dimension("route")
         .measure("request_latency_ms")
         .with_any::<Count>()
-        .with::<Average<f64>>()
+        .with::<Sum<f64>>()
         .with::<TDigest>();
     let schema = builder.build().unwrap();
 
@@ -61,9 +61,11 @@ fn main() {
     let (_, sets) = hour.groups().next().unwrap();
     let latency_set = &sets[MeasureId(0).index()];
 
+    let cnt = latency_set.get::<Count>().unwrap().value();
+    let sum = latency_set.get::<Sum<f64>>().unwrap().value();
     let count = latency_set.get::<Count>().unwrap().value();
-    let mean = latency_set.get::<Average<f64>>().unwrap().sum()
-        / latency_set.get::<Average<f64>>().unwrap().count() as f64;
+    let mean = if cnt > 0 { sum / cnt as f64 } else { 0.0 };
+
     let digest = latency_set.get::<TDigest>().unwrap();
 
     println!("samples ingested : {count}");

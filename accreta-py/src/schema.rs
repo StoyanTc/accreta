@@ -15,7 +15,7 @@
 //! type); only `Count` uses `.with_any()`, confirmed against your `basic_usage` example.
 
 use accreta::aggregate_set::{Schema, SchemaBuilder};
-use accreta::aggregates::{Average, Count, Max, Min, Sum, TDigest};
+use accreta::aggregates::{Count, Max, Min, Sum, TDigest};
 use accreta::measures::MeasureType;
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -80,9 +80,6 @@ impl PySchemaBuilder {
                         "count" => {
                             mb.with_any::<Count>();
                         }
-                        "average" => {
-                            mb.with::<Average<f64>>();
-                        }
                         "tdigest" => {
                             mb.with::<TDigest>();
                         }
@@ -106,9 +103,6 @@ impl PySchemaBuilder {
                         "count" => {
                             mb.with_any::<Count>();
                         }
-                        "average" => {
-                            mb.with::<Average<i64>>();
-                        }
                         "tdigest" => return Err(tdigest_requires_f64()),
                         other => return Err(unknown_aggregate(other)),
                     }
@@ -129,9 +123,6 @@ impl PySchemaBuilder {
                         }
                         "count" => {
                             mb.with_any::<Count>();
-                        }
-                        "average" => {
-                            mb.with::<Average<u64>>();
                         }
                         "tdigest" => return Err(tdigest_requires_f64()),
                         other => return Err(unknown_aggregate(other)),

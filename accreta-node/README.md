@@ -9,8 +9,7 @@ structs directly and generates the JS/TypeScript glue for you.
 
 ## Status / scope
 
-- Only the fixed set of **built-in aggregates** is exposed: `sum`, `count`, `min`, `max`,
-  `average`. Custom/generic aggregates (the kind you'd register in pure Rust via `Monoid` +
+- Only the fixed set of **built-in aggregates** is exposed: `sum`, `count`, `min`, `max`. Custom/generic aggregates (the kind you'd register in pure Rust via `Monoid` +
   `Aggregator`) aren't reachable from JS, for the same reason `accreta-ffi` doesn't expose them:
   a JS caller can't hand you a Rust type at compile time. If you need a custom aggregate from
   Node, it has to be one of the built-ins, or you extend this crate's `register_measure` /

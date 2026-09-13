@@ -4,28 +4,23 @@
 //! and looked up by Rust type, not by name. To hand Python a plain `{name: value}` dict, we go
 //! the other way instead: iterate `set.iter()` (`(&'static str name, &dyn ErasedState)`) and
 //! downcast each state against the built-in kinds — confirmed directly against
-//! `aggregates/{sum,min,max,count,average}.rs`:
+//! `aggregates/{sum,min,max,count,tdigest}.rs`:
 //!
 //! - `Sum<T>`, `Min<T>`, `Max<T>` — generic over `T`, registered via `.with::<T>()`.
 //!   `Sum::value(&self) -> T`. `Min`/`Max::value(&self) -> Option<T>` — `None` for an empty
 //!   bucket (identity element), surfaced here as Python `None`.
 //! - `Count` — not generic, registered via `.with_any::<Count>()`, `.value(&self) -> u64`.
-//! - `Average<T>` — generic, registered via `.with::<T>()` like `Sum`/`Min`/`Max`. No
-//!   `.value()` — exposes `.sum() -> T` and `.count() -> u64`. This wrapper reports the
-//!   computed ratio as a Python `float`, and `None` when `count() == 0` rather than dividing by
-//!   zero (a case the core crate itself doesn't need to handle, since `Average` never exposes
-//!   division directly).
 //! - `TDigest` — not generic (always `f64`), registered via `.with::<TDigest>()`. Unlike the
 //!   above, it has no single `.value()` — reading it means picking a quantile. So `values()`
 //!   silently skips it rather than erroring the whole dict (a set commonly has TDigest
-//!   registered alongside Count/Average on the same measure, and a missing-value error there
+//!   registered alongside Count on the same measure, and a missing-value error there
 //!   shouldn't take down reads of aggregates that *are* readable); read it instead via
 //!   `AggregateSet.quantile(name, q)`.
 
 use std::any::Any;
 
 use accreta::aggregate_set::AggregateSet;
-use accreta::aggregates::{Average, Count, Max, Min, Sum, TDigest}; // ASSUMED module path + type names
+use accreta::aggregates::{Count, Max, Min, Sum, TDigest}; // ASSUMED module path + type names
 use accreta::measures::MeasureType;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
@@ -136,31 +131,6 @@ pub fn extract_aggregate_value<'py>(
 
         ("count", _) => downcast_val!(Count, |s: &Count| s.value()),
 
-        ("average", MeasureType::F64) => downcast_val!(Average<f64>, |s: &Average<f64>| {
-            let count = s.count();
-            if count == 0 {
-                None
-            } else {
-                Some(s.sum() / count as f64)
-            }
-        }),
-        ("average", MeasureType::I64) => downcast_val!(Average<i64>, |s: &Average<i64>| {
-            let count = s.count();
-            if count == 0 {
-                None
-            } else {
-                Some(s.sum() as f64 / count as f64)
-            }
-        }),
-        ("average", MeasureType::U64) => downcast_val!(Average<u64>, |s: &Average<u64>| {
-            let count = s.count();
-            if count == 0 {
-                None
-            } else {
-                Some(s.sum() as f64 / count as f64)
-            }
-        }),
-
         ("tdigest", _) => {
             return Err(PyRuntimeError::new_err(
                 "aggregate 'tdigest' can't be read via AggregateSet.values() — \
@@ -171,7 +141,7 @@ pub fn extract_aggregate_value<'py>(
         (other, _) => {
             return Err(PyRuntimeError::new_err(format!(
                 "accreta-py doesn't yet know how to read aggregate '{other}' — \
-                 it isn't one of the built-in sum/min/max/count/average/tdigest kinds this wrapper handles"
+                 it isn't one of the built-in sum/min/max/count/tdigest kinds this wrapper handles"
             )));
         }
     };

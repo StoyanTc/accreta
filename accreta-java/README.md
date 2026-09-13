@@ -14,7 +14,7 @@ accreta-java/
     error.rs               # SchemaError/IngestError -> thrown Java exceptions
     schema.rs               # SchemaBuilder, MeasureBuilder<'static, f64>, Schema natives
     engine.rs                # Engine natives (new/ingest/rollup/prune/queryRange)
-    aggregate_set.rs          # AggregateSet natives (getSum/getCount/getAverage/getMin/getMax/getQuantile)
+    aggregate_set.rs          # AggregateSet natives (getSum/getCount/getMin/getMax/getQuantile)
   java/
     pom.xml
     src/main/java/com/accreta/
@@ -36,7 +36,7 @@ accreta-java/
 
 ## Scope (matches accreta-node/accreta-ffi's current scope)
 
-- Built-in aggregates only: `Sum`, `Count`, `Min`, `Max`, `Average`, `TDigest`.
+- Built-in aggregates only: `Sum`, `Count`, `Min`, `Max`, `TDigest`.
 - **f64 measures only.** i64/u64 measures aren't wired up yet — same shape as
   `schema.rs::nativeMeasureF64`, one native method per type, mirroring accreta-ffi's
   `register_measure_f64/i64/u64` split. `TDigest` will remain f64-only either way (its
@@ -176,7 +176,7 @@ faithful substitute *because* there's a single group. The retention section (`Re
 
 1. **Compile against your real `aggregates.rs`/`measures.rs`/`dimensions.rs`** — I only saw
    these through doc comments and usage sites, not their full source, so `Min<f64>::value()` /
-   `Max<f64>::value()` / `Average<f64>::sum()`/`count()` signatures, and `Retention::keep`'s
+   `Max<f64>::value()` / `count()` signatures, and `Retention::keep`'s
    exact `self`-by-value-vs-`Copy` shape, are inferred from usage, not confirmed against the
    trait/struct definitions themselves.
 2. i64/u64 measure support.

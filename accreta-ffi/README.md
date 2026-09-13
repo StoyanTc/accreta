@@ -124,7 +124,6 @@ const AccretaAggregateKind aggregates[] = {
     ACCRETA_AGGREGATE_KIND_COUNT,
     ACCRETA_AGGREGATE_KIND_MIN,
     ACCRETA_AGGREGATE_KIND_MAX,
-    ACCRETA_AGGREGATE_KIND_AVERAGE
 };
 
 AccretaSchema *schema = NULL;
@@ -288,7 +287,6 @@ Some aggregate types have a result type independent of the original measure
 type:
 
 * `Count` is always returned as `u64`;
-* `Average` is always returned as `f64`.
 
 Average is represented as a computed `f64` result by the C API. Internally,
 accreta maintains the mergeable average state as `(sum, count)`.

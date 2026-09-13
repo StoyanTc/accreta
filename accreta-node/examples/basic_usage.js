@@ -13,7 +13,7 @@ const engine = new Engine({
     {
       name: "visits",
       valueType: "f64",
-      aggregates: ["sum", "count", "min", "max", "average"],
+      aggregates: ["sum", "count", "min", "max"],
     },
   ],
 });
@@ -48,10 +48,12 @@ for (const bucket of engine.buckets("hour")) {
     const agg = group.measures[0]; // "visits" is measure index 0
     const from = new Date(bucket.startMs).toISOString().slice(11, 16);
     const to = new Date(bucket.endMs).toISOString().slice(11, 16);
+    const sum = agg.sum.toFixed(2);
+    const count = agg.count;
     console.log(
       `  [${group.dimensionValues.join(",")} ${from} .. ${to}) ` +
-        `sum=${agg.sum.toFixed(2)} count=${agg.count} ` +
-        `min=${agg.min.toFixed(2)} max=${agg.max.toFixed(2)} avg=${agg.average.toFixed(2)}`
+        `sum=${sum} count=${count} ` +
+        `min=${agg.min.toFixed(2)} max=${agg.max.toFixed(2)} avg=${count == 0 ? 0 : sum / count}`
     );
   }
 }
@@ -61,7 +63,9 @@ const dayStart = Date.UTC(2026, 5, 1, 0, 0, 0);
 const dayBucket = engine.buckets("day").find((b) => b.startMs === dayStart);
 if (dayBucket) {
   const agg = dayBucket.groups[0].measures[0];
-  console.log(`  count=${agg.count} sum=${agg.sum.toFixed(2)} average=${agg.average.toFixed(2)}`);
+  const sum = agg.sum.toFixed(2);
+  const count = agg.count;
+  console.log(`  count=${count} sum=${sum} average=${count == 0 ? 0 : sum / count}`);
 }
 
 // 4. Ad-hoc range query for the first two hours only — merges whichever buckets already exist,

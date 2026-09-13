@@ -48,7 +48,7 @@ use std::collections::HashMap;
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
-use accreta::aggregates::{Average, Count, Max, Min, Sum, TDigest};
+use accreta::aggregates::{Count, Max, Min, Sum, TDigest};
 use accreta::measures::{MeasureId, MeasureType, MeasureValue};
 use accreta::{BucketLevel, DimensionId, DimensionMask};
 
@@ -118,7 +118,6 @@ pub struct AggregateResult {
     pub count: Option<f64>,
     pub min: Option<f64>,
     pub max: Option<f64>,
-    pub average: Option<f64>,
 }
 
 #[napi(object)]
@@ -600,9 +599,6 @@ fn register_measure(
                     "max" => {
                         $mb.with::<Max<$t>>();
                     }
-                    "average" => {
-                        $mb.with::<Average<$t>>();
-                    }
                     "tdigest" => {
                         // Deliberately not registered here — see the per-ValueType branches
                         // below. TDigest::Input is a fixed f64 (see its module docs), and
@@ -616,7 +612,7 @@ fn register_measure(
                     }
                     other => {
                         return Err(Error::from_reason(format!(
-                            "unknown aggregate '{other}', expected one of: sum, count, min, max, average, tdigest"
+                            "unknown aggregate '{other}', expected one of: sum, count, min, max, tdigest"
                         )));
                     }
                 }
@@ -690,13 +686,6 @@ fn read_aggregates(set: &accreta::AggregateSet, data_type: MeasureType) -> Aggre
                 count,
                 min: set.get::<Min<$t>>().and_then(|m| m.value()).map(cast),
                 max: set.get::<Max<$t>>().and_then(|m| m.value()).map(cast),
-                average: set.get::<Average<$t>>().and_then(|a| {
-                    if a.count() == 0 {
-                        None
-                    } else {
-                        Some(cast(a.sum()) / a.count() as f64)
-                    }
-                }),
             }
         }};
     }
