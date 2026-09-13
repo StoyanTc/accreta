@@ -7,7 +7,7 @@ description = "A reusable mergeable-state aggregation framework for time-series 
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/stoyantc/accreta"
 readme = "README.md"
-keywords = ["aggregation", "time-series", "rollup", "monoid", "metrics"]
+keywords = ["aggregation", "time-series", "rollup", "statistics", "metrics"]
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
@@ -19,11 +19,3 @@ criterion = "0.8.2"
 [[bench]]
 name = "engine_bench"
 harness = false
-
-[[example]]
-name = "basic_usage"
-path = "examples/basic_usage.rs"
-
-[[example]]
-name = "custom_aggregate"
-path = "examples/custom_aggregate.rs"

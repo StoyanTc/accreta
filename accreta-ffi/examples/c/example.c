@@ -144,7 +144,7 @@ int main(void)
     check(accreta_aggregate_set_get_value(
               result, ACCRETA_AGGREGATE_KIND_SUM, ACCRETA_MEASURE_TYPE_F64, &value),
           "get cpu sum");
-    double  sum = value.value.f64;
+    double sum = value.value.f64;
     printf("CPU sum: %.2f\n", sum);
 
     /* Count is always u64, regardless of the measure's own type. */

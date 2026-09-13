@@ -9,7 +9,7 @@ structs directly and generates the JS/TypeScript glue for you.
 
 ## Status / scope
 
-- Only the fixed set of **built-in aggregates** is exposed: `sum`, `count`, `min`, `max`. Custom/generic aggregates (the kind you'd register in pure Rust via `Monoid` +
+- Only the fixed set of **built-in aggregates** is exposed: `sum`, `count`, `min`, `max`, `tdigest`. Custom/generic aggregates (the kind you'd register in pure Rust via `Monoid` +
   `Aggregator`) aren't reachable from JS, for the same reason `accreta-ffi` doesn't expose them:
   a JS caller can't hand you a Rust type at compile time. If you need a custom aggregate from
   Node, it has to be one of the built-ins, or you extend this crate's `register_measure` /
@@ -80,7 +80,7 @@ new Engine({
   measures: {
     name: string,
     valueType: "f64" | "i64" | "u64",
-    aggregates: ("sum" | "count" | "min" | "max" | "average")[],
+    aggregates: ("sum" | "count" | "min" | "max" )[],
   }[],
   retention?: { level: BucketLevel, maxAgeMs: number }[], // optional
 })
@@ -101,8 +101,8 @@ new Engine({
 | `engine.queryRangeGrouped(level, startMs, endMs, measureIndex, groupBy: string[])` | Same, but broken out by the named dimensions. `groupBy: []` gives one row (the grand total). |
 | `engine.dimensionNames` / `engine.measureNames` | Getters, in schema registration order. |
 
-`AggregateResult` fields (`sum`, `count`, `min`, `max`, `average`) are `null` when that aggregate
-wasn't registered for the measure, and `min`/`max`/`average` are also `null` if the bucket/range
+`AggregateResult` fields (`sum`, `count`, `min`, `max`, `tdigest`) are `null` when that aggregate
+wasn't registered for the measure, and `min`/`max`/`tdigest` are also `null` if the bucket/range
 has no data yet — matching `accreta`'s own `Option`-returning `.value()` semantics.
 
 See `examples/basic_usage.js` for a full walkthrough (ports the Rust `basic_usage.rs` example).
