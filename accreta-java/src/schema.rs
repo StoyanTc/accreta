@@ -10,9 +10,9 @@
 //! same pattern as here, mirroring the `register_measure_f64/i64/u64` split you already have in
 //! accreta-ffi's `schema.rs`.
 
+use jni::JNIEnv;
 use jni::objects::{JClass, JString};
 use jni::sys::jlong;
-use jni::JNIEnv;
 
 use accreta::aggregate_set::{MeasureBuilder, Schema, SchemaBuilder};
 use accreta::aggregates::{Count, Max, Min, Sum, TDigest};

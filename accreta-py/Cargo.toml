@@ -6,6 +6,7 @@ edition = "2024"
 [lib]
 name = "accreta"       # must match the #[pymodule] fn name in src/lib.rs
 crate-type = ["cdylib"]
+doc = false
 
 [dependencies]
 accreta = { path = "../accreta", version = "0.2.0" }

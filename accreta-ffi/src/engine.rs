@@ -164,7 +164,7 @@ pub unsafe extern "C" fn accreta_engine_free(engine: *mut AccretaEngine) {
 ///
 /// `measures` (`measures_len` entries, in `MeasureId` order) and `dimensions` (`dimensions_len`
 /// NUL-terminated UTF-8 strings, in `DimensionId` order) must each match the schema's counts —
-/// see [`accreta_schema_measure_count`] / [`accreta_schema_dimension_count`]. Each measure
+/// see \[`accreta_schema_measure_count`\] / \[`accreta_schema_dimension_count`\]. Each measure
 /// value's own `tag` determines how it's interpreted; if it doesn't match that measure's declared
 /// type, accreta itself rejects the sample with [`AccretaStatus::Ingest`].
 ///

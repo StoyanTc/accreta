@@ -5,9 +5,9 @@
 //! Each returns a sentinel plus a `hasX`/`out-param "found"` story where the aggregate wasn't
 //! registered on this measure — see each method's doc below for its exact contract.
 
-use jni::objects::JClass;
-use jni::sys::{jboolean, jdouble, jlong, JNI_FALSE, JNI_TRUE};
 use jni::JNIEnv;
+use jni::objects::JClass;
+use jni::sys::{JNI_FALSE, JNI_TRUE, jboolean, jdouble, jlong};
 
 use accreta::aggregate_set::AggregateSet;
 use accreta::aggregates::{Count, Max, Min, Sum, TDigest};

@@ -71,7 +71,7 @@ impl Centroid {
 /// A t-digest: an approximate summary of a distribution that supports merging and quantile
 /// queries.
 ///
-/// See the [module docs](self) for how this fits into the [`Monoid`] contract.
+/// See the module documentation for how this fits into the [`Monoid`] contract.
 #[derive(Debug, Clone)]
 pub struct TDigest {
     /// Compressed centroids, always kept sorted by `mean`. Does not necessarily reflect every

@@ -9,7 +9,7 @@ use crate::types::{AccretaBucketLevel, datetime_to_ms};
 
 /// Opaque handle to an owned, cloned [`accreta::bucket::Bucket`].
 ///
-/// Obtained from [`crate::accreta_engine_bucket`] or an [`AccretaBucketCursor`]. It's a snapshot
+/// Obtained from [`crate::accreta_engine_bucket`] or an \[`AccretaBucketCursor`\]. It's a snapshot
 /// — independent of the [`crate::AccretaEngine`] it came from, so later ingestion or rollups on
 /// that engine won't be reflected in a bucket handle you're already holding. Free with
 /// [`accreta_bucket_free`].
@@ -143,8 +143,8 @@ pub unsafe extern "C" fn accreta_bucket_groups_cursor(
 }
 
 /// Advances `cursor`, writing the next group's key and aggregate-set list to `*out_key` /
-/// `*out_sets` (both newly owned — free them with [`accreta_dimension_key_free`] /
-/// [`accreta_aggregate_set_list_free`]).
+/// `*out_sets` (both newly owned — free them with \[`accreta_dimension_key_free`\] /
+/// \[`accreta_aggregate_set_list_free`\]).
 ///
 /// Returns `true` and writes the pair, or returns `false` (leaving the out params untouched) once
 /// the cursor is exhausted.

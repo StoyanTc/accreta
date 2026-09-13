@@ -19,7 +19,7 @@ pub struct AccretaSchemaBuilder(SchemaBuilder);
 
 /// Opaque handle to a built, immutable [`accreta::aggregate_set::Schema`].
 ///
-/// Cheap to keep around: internally it's reference-counted, so [`accreta_engine_new`] clones it
+/// Cheap to keep around: internally it's reference-counted, so \[`accreta_engine_new`\] clones it
 /// rather than consuming your handle — free your `AccretaSchema*` with
 /// [`accreta_schema_free`] whenever you're done with it, independently of any engines built from
 /// it.
@@ -263,7 +263,7 @@ pub unsafe extern "C" fn accreta_schema_builder_add_measure(
 /// On success, `*out_schema` is set to a new [`AccretaSchema`] handle the caller owns (free it
 /// with [`accreta_schema_free`]). On failure, `*out_schema` is set to null and a status
 /// describing why (no dimension / no measure registered) is returned; see
-/// [`accreta_last_error_message`].
+/// \[`accreta_last_error_message`\].
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn accreta_schema_builder_build(
     builder: *mut AccretaSchemaBuilder,

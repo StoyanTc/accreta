@@ -14,7 +14,7 @@
 //!   Every `extern "C" fn" body is wrapped in [`ffi_guard`], which catches panics and converts
 //!   them into [`AccretaStatus::Panic`] / a null pointer, as appropriate for the function's return
 //!   type.
-//! - Time is passed as `i64` **milliseconds since the Unix epoch** (UTC) — see [`types`] for the
+//! - Time is passed as `i64` **milliseconds since the Unix epoch** (UTC) — see \[`types`\] for the
 //!   conversion helpers.
 //! - Iteration over collections that don't have a natural fixed size in C (bucket groups, a
 //!   grouped query's result set, all buckets at a level) uses a **cursor/handle** model: a

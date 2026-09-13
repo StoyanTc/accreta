@@ -3,9 +3,9 @@
 //! This exists to mirror `tdigest_quantiles.rs`'s merge-order demonstration, which builds and
 //! merges free-standing digests directly via `Monoid`/`Aggregator`.
 
+use jni::JNIEnv;
 use jni::objects::JClass;
 use jni::sys::{jdouble, jlong};
-use jni::JNIEnv;
 
 use accreta::aggregates::TDigest;
 use accreta::{Aggregator, Monoid};

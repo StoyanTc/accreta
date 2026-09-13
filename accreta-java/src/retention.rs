@@ -6,9 +6,9 @@
 //! `SchemaBuilder`/`MeasureBuilder` do.
 
 use chrono::Duration;
+use jni::JNIEnv;
 use jni::objects::JClass;
 use jni::sys::{jint, jlong};
-use jni::JNIEnv;
 
 use accreta::bucket::BucketLevel;
 use accreta::retention::Retention;

@@ -1,9 +1,9 @@
 //! JNI natives backing `com.accreta.Engine`.
 
 use chrono::{TimeZone, Utc};
+use jni::JNIEnv;
 use jni::objects::{JClass, JObjectArray, JString};
 use jni::sys::{jdouble, jint, jlong, jlongArray};
-use jni::JNIEnv;
 
 use accreta::aggregate_set::Schema;
 use accreta::bucket::BucketLevel;

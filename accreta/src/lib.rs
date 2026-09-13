@@ -12,7 +12,7 @@
 //! ([`Monoid::merge`]) to get the state you'd have gotten by seeing both
 //! sets of data at once. Rollups then become pure state merges.
 //!
-//! Most built-in aggregates (`Sum`, `Count`, `Min`, `Max`, `Average`) are *exact*: merging is
+//! Most built-in aggregates (`Sum`, `Count`, `Min`, `Max`) are *exact*: merging is
 //! associative and commutative in the strict sense. [`aggregates::TDigest`] is the one
 //! exception — an approximate, compressing sketch used for quantile estimation, whose `Monoid`
 //! laws hold only within its compression-dependent error bound rather than exactly. See its
@@ -82,8 +82,7 @@
 //! ```
 //!
 //! See the `custom_aggregate` example for a complete worked implementation (a running Variance
-//! computed via Welford's algorithm), [`aggregates::Average`] for an example of
-//! building a derived aggregate out of two existing ones, and the `tdigest_quantiles` example
+//! computed via Welford's algorithm), and the `tdigest_quantiles` example
 //! for a built-in aggregate whose `Monoid` laws are only approximate rather than exact.
 //!
 //! ## Quick start
