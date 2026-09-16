@@ -14,6 +14,7 @@ accreta/
 ├── accreta-wasm/        # WebAssembly bindings (planned)
 ├── accreta-py/           # Python bindings (PyO3 / maturin)
 ├── accreta-java/           # Java bindings (JNI)
+├── accreta-metrics/         # Reference/demo tokio+axum service
 └── accreta-go/               # Go bindings (planned)
 ```
 
@@ -30,6 +31,7 @@ and version — see the table below for links and install instructions.
 | [`accreta-wasm`](./accreta-wasm) | WebAssembly | npm | see package |
 | [`accreta-py`](./accreta-py) | Python | PyPI | see package |
 | [`accreta-java`](./accreta-java) | Java | — | see package |
+| [`accreta-metrics`](./accreta-metrics) | Rust | — | see package |
 | [`accreta-go`](./accreta-go) | Go | — | planned |
 
 ## Development

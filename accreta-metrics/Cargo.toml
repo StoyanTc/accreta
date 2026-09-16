@@ -1,0 +1,26 @@
+[package]
+name = "accreta-metrics"
+version = "0.1.0"
+edition = "2024"
+description = "Reference/demo tokio+axum service exposing the accreta mergeable-state aggregation engine over an OpenAPI HTTP surface."
+
+[profile.release]
+strip = true
+
+[dependencies]
+accreta = "0.1.1"
+argon2 = "0.6.0"
+axum = "0.8.9"
+chrono = { version = "0.4.45", features = ["serde"] }
+dashmap = "6.2.1"
+getrandom = "0.3"
+jsonwebtoken = { version = "11.0.0", features = ["rust_crypto"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+thiserror = "2.0.20"
+tokio = { version = "1.53.1", features = ["full"] }
+tower-http = { version = "0.7.1", features = ["cors", "trace"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+utoipa = { version = "5.5.0", features = ["axum_extras", "chrono"] }
+utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
