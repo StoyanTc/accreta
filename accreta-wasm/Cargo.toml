@@ -1,0 +1,30 @@
+[package]
+name = "accreta-wasm"
+version = "0.1.0"
+edition = "2024"
+description = "WebAssembly bindings for accreta"
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Adjust the path to wherever accreta core lives inside the workspace.
+accreta = { path = "../accreta", version = "0.2.0" }
+
+wasm-bindgen = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+
+# Optional but recommended: turns Rust panics into readable console.error messages in the
+# browser instead of an opaque "unreachable executed" trap. Call console_error_panic_hook::set_once()
+# once at startup (e.g. in a wasm-bindgen(start) fn) if you enable this.
+console_error_panic_hook = { version = "0.1", optional = true }
+
+[features]
+default = ["console_error_panic_hook"]
+
+[profile.release]
+opt-level = "s"
+lto = true
