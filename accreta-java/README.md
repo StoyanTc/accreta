@@ -185,3 +185,16 @@ faithful substitute *because* there's a single group. The retention section (`Re
 4. Packaging the native library into the jar's resources so `System.loadLibrary` doesn't need
    `-Djava.library.path` at all (a small `NativeLibrary.load()` change to extract-and-load from
    a classpath resource, same trick napi-rs's prebuild step effectively does for Node).
+
+## Contributing
+
+See [CONTRIBUTING.md](../CONTRIBUTING.md).
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 (([LICENSE-APACHE](../LICENSE-APACHE)))
+- MIT license ([LICENSE-MIT](../LICENSE-MIT))
+
+at your option.
