@@ -11,6 +11,7 @@ accreta/
 ├── accreta/           # core library — the source of truth
 ├── accreta-ffi/        # C ABI, used as the basis for the other bindings
 ├── accreta-node/        # Node.js bindings (napi-rs)
+├── accreta-wasm/        # WebAssembly bindings (planned)
 ├── accreta-py/           # Python bindings (PyO3 / maturin)
 ├── accreta-java/           # Java bindings (JNI)
 └── accreta-go/               # Go bindings (planned)
@@ -26,6 +27,7 @@ and version — see the table below for links and install instructions.
 | [`accreta`](./accreta) | Rust | [crates.io](https://crates.io/crates/accreta) | see crate |
 | [`accreta-ffi`](./accreta-ffi) | C ABI | — | see crate |
 | [`accreta-node`](./accreta-node) | Node.js | npm | see package |
+| [`accreta-wasm`](./accreta-wasm) | WebAssembly | npm | see package |
 | [`accreta-py`](./accreta-py) | Python | PyPI | see package |
 | [`accreta-java`](./accreta-java) | Java | — | see package |
 | [`accreta-go`](./accreta-go) | Go | — | planned |
@@ -62,7 +64,7 @@ Contributions are welcome. A few notes specific to this workspace:
 - Larger changes (new public API, breaking changes, a new language binding):
   please open an issue first to discuss the approach before investing time
   in an implementation.
-- Each binding (`accreta-ffi`, `accreta-node`, `accreta-py`) has its own
+- Each binding (`accreta-ffi`, `accreta-node`, `accreta-py`, `accreta-wasm`, `accreta-java`) has its own
   build tooling on top of Cargo — see that package's README for how to build
   and test it locally.
 

@@ -5,5 +5,5 @@ members = [
     "accreta-ffi",
     "accreta-node",
     "accreta-py",
-    "accreta-java",
+    "accreta-java", "accreta-wasm",
 ]
