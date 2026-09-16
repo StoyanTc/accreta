@@ -1,7 +1,0 @@
-/target/
-.idea/
-.vscode/
-*.swp
-.DS_Store
-/include/
-/examples/c/build/
