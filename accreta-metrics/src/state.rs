@@ -24,8 +24,8 @@
 //! implementing the `filter` clause by hand over `Engine::buckets`/`Bucket::groups` — see
 //! `query_api.rs`).
 
-use std::collections::HashMap;
 use std::sync::Arc;
+use std::{collections::HashMap, sync::atomic::AtomicI64};
 
 use accreta::engine::Engine;
 use dashmap::DashMap;
@@ -132,4 +132,8 @@ pub struct AppState {
     /// Username -> tenant record. Seeded once at startup from config; there is no `/signup` in
     /// v1 (see design summary).
     pub credentials: DashMap<String, TenantRecord>,
+    /// Unix millis of the last fully-completed rollup+prune sweep; 0 until the first tick.
+    /// `AtomicI64` rather than an `RwLock<Option<DateTime<Utc>>>` so `/health` stays cheap and
+    /// lock-free regardless of what ingest/query/rollup are doing.
+    pub last_rollup_sweep: AtomicI64,
 }

@@ -1,6 +1,7 @@
 mod auth;
 mod dispatch;
 mod error;
+mod health;
 mod ingest_api;
 mod openapi;
 mod query_api;
@@ -12,7 +13,7 @@ use std::sync::Arc;
 
 use argon2::{Argon2, PasswordHasher};
 use axum::routing::post;
-use axum::Router;
+use axum::{Router, routing::get};
 use dashmap::DashMap;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
@@ -60,11 +61,13 @@ async fn main() {
     let state = Arc::new(AppState {
         jwt: auth::new_jwt_keys(),
         credentials: seed_credentials(),
+        last_rollup_sweep: std::sync::atomic::AtomicI64::new(0),
     });
 
     rollup::spawn(state.clone());
 
     let app = Router::new()
+        .route("/health", get(health::health))
         .route("/login", post(auth::login))
         .route(
             "/schema",

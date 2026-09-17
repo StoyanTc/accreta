@@ -25,6 +25,7 @@ impl Modify for SecurityAddon {
 #[derive(OpenApi)]
 #[openapi(
     paths(
+        crate::health::health,
         crate::auth::login,
         crate::schema_api::create_schema,
         crate::schema_api::get_schema,
@@ -32,6 +33,7 @@ impl Modify for SecurityAddon {
         crate::query_api::query,
     ),
     components(schemas(
+        crate::health::HealthResponse,
         crate::auth::LoginRequest,
         crate::auth::LoginResponse,
         crate::schema_api::MeasureRequest,
@@ -52,6 +54,7 @@ impl Modify for SecurityAddon {
     )),
     modifiers(&SecurityAddon),
     tags(
+        (name = "health", description = "Liveness and rollup-freshness probe"),
         (name = "auth", description = "Login and token issuance"),
         (name = "schema", description = "Schema creation and introspection"),
         (name = "ingest", description = "Sample ingestion"),

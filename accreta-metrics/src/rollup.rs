@@ -5,6 +5,7 @@
 //! retention policy is configured) prunes old buckets.
 
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::Duration as StdDuration;
 
 use crate::state::AppState;
@@ -34,4 +35,8 @@ async fn sweep(state: &Arc<AppState>) {
         engine_state.engine.prune();
         tracing::debug!(tenant = %entry.key(), "rollup + prune swept");
     }
+
+    state
+        .last_rollup_sweep
+        .store(chrono::Utc::now().timestamp_millis(), Ordering::Relaxed);
 }
