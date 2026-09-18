@@ -1,8 +1,9 @@
 # accreta-metrics
 
 Reference/demo tokio+axum service exposing the [`accreta`](https://crates.io/crates/accreta)
-mergeable-state aggregation engine over an OpenAPI HTTP surface. See the design summary you
-provided for the full endpoint/behavior spec this implements.
+mergeable-state aggregation engine over an OpenAPI HTTP surface. It also includes a deterministic
+synthetic workload generator for continuously feeding realistic time-series data through the
+public ingestion API.
 
 ## Requirements
 
@@ -48,6 +49,159 @@ the background sweep rolls minute buckets up into hour/day/week/month/year; lowe
 testing so you don't have to wait to query at a coarser level than you ingested at).
 
 ---
+
+
+## Synthetic Data Generator
+
+The repository includes a deterministic synthetic workload generator for local
+development and end-to-end testing. It continuously generates realistic
+time-series observations and sends them through the real HTTP ingestion API:
+
+```text
+accreta-generator
+      │
+      ▼
+POST /login
+      │
+      ▼
+POST /schema
+      │
+      ▼
+POST /schema/ingest
+      │
+      ▼
+accreta-metrics → accreta
+```
+
+This deliberately does **not** write directly to the storage/engine. Running
+the generator through the public API exercises authentication, schema
+validation, ingestion, dimension dictionaries, and the Accreta aggregation
+engine just like a real client.
+
+### Run the generator
+
+Start the service first:
+
+```sh
+cargo run -p accreta-metrics
+```
+
+Then, from another terminal:
+
+```sh
+cargo run -p accreta-metrics --bin accreta-generator
+```
+
+The generator logs in automatically and creates the demo schema if it does not
+already exist.
+
+For faster local testing, use accelerated simulated time:
+
+```sh
+cargo run -p accreta-metrics --bin accreta-generator -- \
+  --mode accelerated \
+  --time-scale 60 \
+  --events-per-second 100 \
+  --seed 42
+```
+
+The `--time-scale 60` setting makes simulated time advance roughly 60 times
+faster than wall-clock time, allowing hour/day/week/month/year rollups to be
+populated without waiting in real time.
+
+### Generator options
+
+| Option | Default | Description |
+|---|---|---|
+| `--url` | `http://127.0.0.1:8080` | Metrics service URL |
+| `--username` | `demo` | Login username |
+| `--password` | `demo123` | Login password |
+| `--events-per-second` | `100` | Number of generated observations per second |
+| `--interval-ms` | `1000` | Generation interval in milliseconds |
+| `--mode` | `realtime` | `realtime` or `accelerated` |
+| `--time-scale` | `60` | Simulated-time multiplier in accelerated mode |
+| `--seed` | `42` | Deterministic PRNG seed |
+| `--scenario` | `normal` | `normal`, `traffic-spike`, `latency-spike`, `error-spike`, or `mixed` |
+| `--batch-size` | `100` | Number of observations sent per HTTP request |
+
+For example, to continuously generate incidents while quickly advancing
+simulated time:
+
+```sh
+cargo run -p accreta-metrics --bin accreta-generator -- \
+  --mode accelerated \
+  --time-scale 60 \
+  --scenario mixed \
+  --events-per-second 100 \
+  --seed 42
+```
+
+The generator uses a small deterministic PRNG and therefore does not require
+an additional random-number dependency.
+
+### Generated schema
+
+The generator creates the following demo schema:
+
+**Dimensions**
+
+- `service`
+- `region`
+- `endpoint`
+- `status`
+
+**Measures**
+
+- `request_count` (`u64`) — `sum`, `count`
+- `latency_ms` (`f64`) — `sum`, `count`, `min`, `max`, `tdigest`
+- `error_count` (`u64`) — `sum`, `count`
+
+`latency_ms` includes endpoint/region-specific variation and bounded noise.
+The synthetic workload also varies traffic and error rates so that the
+dashboard can demonstrate grouping, filtering, rollups, and percentile
+queries.
+
+### Scenarios
+
+The generator can periodically introduce synthetic incidents:
+
+- `normal` — baseline traffic and latency.
+- `traffic-spike` — approximately 4× traffic during incident periods.
+- `latency-spike` — approximately 3× latency during incident periods.
+- `error-spike` — approximately 10× error probability during incident periods.
+- `mixed` — combines traffic, latency, and error-rate changes.
+
+These scenarios are intended for dashboard/demo development rather than
+benchmarking. Use a fixed `--seed` when reproducibility is useful.
+
+### Suggested local workflow
+
+For the complete development loop:
+
+```text
+Terminal 1                         Terminal 2
+──────────                         ──────────
+cargo run -p accreta-metrics      cargo run -p accreta-metrics --bin accreta-generator
+                                      │
+                                      ▼
+                                  HTTP ingestion
+                                      │
+                                      ▼
+                                  Accreta engine
+
+Browser
+   │
+   ▼
+Swagger UI / Svelte dashboard
+   │
+   ▼
+query API
+```
+
+This generator is Stage 0 of the dashboard development plan. Stage 1 adds the
+Svelte/TypeScript dashboard on top of the HTTP API. Stage 2 can add
+`accreta-wasm` for client-side/offline aggregation without changing the
+dashboard's core query model.
 
 ## Service Walkthrough
 
