@@ -1,6 +1,6 @@
 [package]
 name = "accreta-ffi"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "C ABI bindings for the accreta time-series aggregation library"
@@ -14,7 +14,7 @@ readme = "README.md"
 crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
-accreta = { path = "../accreta", version = "0.2.0" }
+accreta = { path = "../accreta", version = "0.3.0" }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 [build-dependencies]

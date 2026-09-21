@@ -229,14 +229,14 @@ fn ingest_bytes_per_unique_dimension_group_is_bounded() {
 
 fn rollup_memory_overhead_is_small_relative_to_ingestion() {
     let t0 = Utc.with_ymd_and_hms(2026, 3, 15, 0, 0, 0).unwrap();
-    const MINUTES: i64 = 24 * 60; // one full day of minute buckets
+    const SECONDS: i64 = 60 * 60; // one hour of one-second buckets
 
     let (mut engine, ingest_bytes, _) = measure(|| {
         let schema = basic_schema();
         let mut engine = Engine::new(schema);
-        for i in 0..MINUTES {
+        for i in 0..SECONDS {
             engine
-                .ingest(t0 + Duration::minutes(i), [i as f64], ["server-a"])
+                .ingest(t0 + Duration::seconds(i), [i as f64], ["server-a"])
                 .unwrap();
         }
         engine
@@ -247,7 +247,7 @@ fn rollup_memory_overhead_is_small_relative_to_ingestion() {
     });
 
     eprintln!(
-        "[memory] ingest {MINUTES} minute samples: {ingest_bytes} bytes; \
+        "[memory] ingest {SECONDS} one-second samples: {ingest_bytes} bytes; \
          rollup(): {rollup_bytes} bytes retained, {rollup_peak} bytes peak"
     );
 
@@ -309,7 +309,7 @@ fn bucket_merge_bytes_scale_roughly_linearly_with_group_count() {
     let start = Utc.with_ymd_and_hms(2026, 3, 15, 10, 0, 0).unwrap();
 
     let make_bucket = |dictionaries: &mut DimensionDictionaries, groups: usize| {
-        let mut bucket = Bucket::new(BucketLevel::Minute, start);
+        let mut bucket = Bucket::new(BucketLevel::Second, start);
         for i in 0..groups {
             let id = dictionaries.dictionaries[0].get_or_insert(&format!("server-{i}"));
             let s = Sample::new(

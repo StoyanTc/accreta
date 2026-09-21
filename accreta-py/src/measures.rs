@@ -55,12 +55,3 @@ pub fn py_to_measure_value(
         MeasureType::F64 => MeasureValue::F64(value.extract::<f64>()?),
     })
 }
-
-/// Convert a `MeasureValue` back into a Python object, for reading aggregate results out.
-pub fn measure_value_to_py<'py>(py: Python<'py>, value: MeasureValue) -> Bound<'py, PyAny> {
-    match value {
-        MeasureValue::I64(v) => v.into_pyobject(py).unwrap().into_any(),
-        MeasureValue::U64(v) => v.into_pyobject(py).unwrap().into_any(),
-        MeasureValue::F64(v) => v.into_pyobject(py).unwrap().into_any(),
-    }
-}

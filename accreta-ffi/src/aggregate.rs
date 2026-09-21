@@ -27,9 +27,7 @@ pub struct AccretaAggregateSetList(pub(crate) Vec<AggregateSet>);
 /// (`set.get::<Sum<f64>>().unwrap().value()`): `Sum<T>`/`Min<T>`/`Max<T>` are generic over the
 /// measure's numeric type `T` and expose `.value() -> T` (for `Min`/`Max`, `Option<T>`, `None` at
 /// the identity / "no samples seen" state — there is no other principled identity element for a
-/// min/max monoid); `Count` is non-generic with `.value() -> u64`; `Average` is non-generic over
-/// its *aggregate* type but generic over the measure's `T` for its `Aggregator` impl, with
-/// `.value() -> f64` regardless of `T`. **Verify this against your actual `aggregates.rs`** —
+/// min/max monoid); `Count` is non-generic with `.value() -> u64`. **Verify this against your actual `aggregates.rs`** —
 /// this is the one place in this crate that had to be written without seeing that file, and it's
 /// deliberately the only function that would need to change if a signature differs.
 ///
@@ -94,7 +92,7 @@ fn extract_value(
 /// `*out_value`.
 ///
 /// Returns [`AccretaStatus::TypeMismatch`] if `kind` was never attached to this measure in the
-/// schema (e.g. asking for `Average` on a measure only registered with `Sum` and `Count`), or if
+/// schema (e.g. asking for `Min` on a measure only registered with `Sum` and `Count`), or if
 /// `kind` is `Min`/`Max` and no sample has been folded into this state yet.
 ///
 /// `kind = AccretaAggregateKind::TDigest` always fails with

@@ -19,12 +19,13 @@ use crate::handles::{borrow, borrow_mut, drop_handle, into_handle};
 /// doc-comment for the matching contract.
 pub(crate) fn bucket_level_from_ordinal(ordinal: jint) -> BucketLevel {
     match ordinal {
-        0 => BucketLevel::Minute,
-        1 => BucketLevel::Hour,
-        2 => BucketLevel::Day,
-        3 => BucketLevel::Week,
-        4 => BucketLevel::Month,
-        5 => BucketLevel::Year,
+        0 => BucketLevel::Second,
+        1 => BucketLevel::Minute,
+        2 => BucketLevel::Hour,
+        3 => BucketLevel::Day,
+        4 => BucketLevel::Week,
+        5 => BucketLevel::Month,
+        6 => BucketLevel::Year,
         other => panic!("unknown BucketLevel ordinal {other} — Java/Rust enums are out of sync"),
     }
 }

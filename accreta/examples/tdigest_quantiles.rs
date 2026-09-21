@@ -23,9 +23,9 @@ use accreta::monoid::Monoid;
 use chrono::{Duration, TimeZone, Utc};
 
 fn main() {
-    // 1. Register TDigest alongside Average on the same measure. TDigest is deliberately
+    // 1. Register TDigest alongside Count and Sum on the same measure. TDigest is deliberately
     //    heavier than the exact aggregates, so it's registered only on the one measure that
-    //    actually needs quantiles ("request_latency_ms") — Average stays the cheap, exact
+    //    actually needs quantiles ("request_latency_ms") — Sum and Count stay the cheap, exact source of the
     //    general-purpose mean for the same measure, and other measures in a real schema
     //    wouldn't get TDigest at all unless they too needed quantile queries.
     let mut builder = Schema::builder();

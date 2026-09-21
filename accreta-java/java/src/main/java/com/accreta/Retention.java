@@ -6,7 +6,7 @@ import java.time.Duration;
  * Mirrors {@code accreta::retention::Retention}.
  *
  * <pre>{@code
- * Retention policy = new Retention().keep(BucketLevel.MINUTE, Duration.ofHours(1));
+ * Retention policy = new Retention().keep(BucketLevel.SECOND, Duration.ofHours(1));
  * Engine engine = new Engine(schema, policy);
  * }</pre>
  */

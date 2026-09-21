@@ -35,14 +35,18 @@ public final class AggregateSet implements AutoCloseable {
         return nativeGetCount(handle);
     }
 
-    /** {@code Average<f64>.sum() / Average<f64>.count()} — matches the division done inline in the Rust examples. */
+    /**
+     * The mean, derived as {@link #getSum()} / {@link #getCount()} ({@code accreta} has no
+     * {@code Average} aggregate since 0.2.0). {@code NaN} if the count is zero. Requires both
+     * {@code Sum} and {@code Count} to be registered on this measure; otherwise they read as
+     * 0.0 / 0 and this returns {@code NaN}.
+     */
     public double getAverage() {
-        checkOpen();
-        long count = nativeGetAverageCount(handle);
+        long count = getCount();
         if (count == 0) {
             return Double.NaN;
         }
-        return nativeGetAverageSum(handle) / (double) count;
+        return getSum() / (double) count;
     }
 
     /** {@code Min<f64>.value()} — empty until the first sample, same as the Rust {@code Option}. */
@@ -82,10 +86,6 @@ public final class AggregateSet implements AutoCloseable {
     private static native double nativeGetSum(long handle);
 
     private static native long nativeGetCount(long handle);
-
-    private static native double nativeGetAverageSum(long handle);
-
-    private static native long nativeGetAverageCount(long handle);
 
     private static native boolean nativeGetMin(long handle, double[] out);
 

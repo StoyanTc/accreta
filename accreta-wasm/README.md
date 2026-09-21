@@ -44,12 +44,15 @@ const engine = new Engine({
     { name: "error_count", valueType: "u64", aggregates: ["sum", "count"] },
   ],
   retention: [
-    { level: "minute", maxAgeMs: 60 * 60 * 1000 },   // keep 1 hour of minute buckets
+    { level: "second", maxAgeMs: 60 * 60 * 1000 },        // keep 1 hour of second buckets
     { level: "hour", maxAgeMs: 7 * 24 * 60 * 60 * 1000 }, // keep 7 days of hour buckets
   ],
 });
 
+// Raw samples always land in `second` buckets.
 engine.ingest(Date.now(), [42.5, 1], ["us-east", "host-01"]);
+
+// Every coarser level (minute, hour, ...) is derived by rollup().
 engine.rollup();
 
 const totals = engine.queryRange("minute", startMs, endMs, /* measureIndex */ 0);
@@ -62,13 +65,33 @@ if (digest) {
 
 const byRegion = engine.queryRangeGrouped("minute", startMs, endMs, 0, ["region"]);
 // byRegion: [{ dimensions, dimensionValues, aggregate }, ...]
+
+// The mean isn't an aggregate of its own: derive it from sum and count.
+const mean = totals.count ? totals.sum / totals.count : null;
 ```
+
+> The retention policy above is only safe in an ingest → `rollup()` → `prune()` → read flow. See
+> "Bucket levels and retention" below before combining retention with periodic rollups.
+
+## Bucket levels and retention
+
+`BucketLevel` runs `second, minute, hour, day, week, month, year` (finest to coarsest). Raw
+samples are always ingested into `second` buckets; every other level is derived by
+`engine.rollup()`, so until the first `rollup()` only `"second"` holds data.
+
+`rollup()` rebuilds every level above `second` from the level below on each call. That has one
+important consequence for retention: once `prune()` has dropped old `second` (or `minute`, ...)
+buckets, the *next* `rollup()` recomputes the coarser levels from only the surviving buckets, and
+the pruned data disappears from them as well. Until `accreta` gains an incremental rollup, use
+retention only in a batch-style flow (ingest → `rollup()` → `prune()` → read), not in a loop that
+keeps calling `rollup()` after pruning.
 
 ## API notes
 
 - **Field names are camelCase** on the JS side (`valueType`, `maxAgeMs`, `dimensionValues`, etc.) via `serde`'s `rename_all`, matching `accreta-node`'s convention.
 - **`buckets()`, `queryRange()`, and `queryRangeGrouped()` return plain JS values** (objects/arrays), not typed classes — see "Differences from accreta-node" below for why.
 - **`Engine` and `TDigestHandle` are real JS classes** (backed by opaque Rust handles), same as their `accreta-node` counterparts.
+- **`ingest()` truncates timestamps to the second** — sub-second precision is discarded.
 - **Errors surface as thrown JS exceptions** (`Error` instances), not error codes or `Result`-shaped returns.
 
 ## Differences from `accreta-node`
@@ -88,11 +111,12 @@ If you're familiar with `accreta-node`, most of the API maps over directly. A fe
 - **`tdigest` compression default is still config-file-backed in `accreta` core**, which has no filesystem access in a browser. This needs an upstream fix in `accreta` core (moving the default to a `build.rs`-generated compile-time constant, plus ideally an explicit per-measure override) — not something this wrapper alone can resolve. Until that lands, registering `tdigest` will fail or panic wherever `accreta` core's current file read happens.
 - **Name interning bounds leaks by distinct names, not by `Engine`s created.** If your application registers genuinely new dimension/measure names over time (rather than rebuilding the same schema repeatedly), each new name still leaks for the life of the WASM instance — nothing here reclaims memory on `Engine` drop. A from-scratch fix would need `accreta` core to accept non-`'static` names via an arena tied to `Engine`'s own lifetime, which is a breaking change to `accreta` core's public API, not a wrapper-level fix.
 - **No TypeScript `.d.ts` beyond what `wasm-bindgen`/`wasm-pack` auto-generates for the `#[wasm_bindgen]` classes.** `SchemaSpec`/`MeasureSpec`/`RetentionSpec` and the various result shapes are plain `JsValue` on the wire, so consumers get no compile-time shape-checking for them unless you hand-write or generate types (e.g. via `tsify`) separately.
-- **`average` is not yet wired up** as a built-in aggregate in this port — `accreta-node`'s `AggregateResult`/`read_aggregates` didn't include it either at the time this was ported, so it's carried over as a gap rather than introduced here; worth confirming against the current `accreta-node` state before shipping.
+- **There is no `average` aggregate.** It was removed from `accreta` in 0.2.0 because it is derivable from `sum` and `count`; register both on the measure and compute `sum / count` on the JS side. Requesting `"average"` in a schema is rejected as an unknown aggregate.
+- **Memory grows faster with `second` as the base level.** Every distinct ingest second gets its own bucket holding one aggregate state per dimension combination seen in it (a `tdigest` per group, if registered), and a browser tab has a small memory budget. Keep the retention caveat above in mind, and prefer ingesting pre-batched samples over one call per event when volume is high.
 
 ## Retention levels
 
-One of: `"minute"`, `"hour"`, `"day"`, `"week"`, `"month"`, `"year"`. Matches `accreta::BucketLevel`.
+One of: `"second"`, `"minute"`, `"hour"`, `"day"`, `"week"`, `"month"`, `"year"`. Matches `accreta::BucketLevel`.
 
 ## Value types
 

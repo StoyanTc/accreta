@@ -253,7 +253,7 @@ where
 /// A named collection of aggregate states, all sharing one [`Schema`].
 ///
 /// This is what a [`crate::bucket::Bucket`] holds: e.g. `{"sum": Sum(42.0), "count": Count(7),
-/// "min": Min(1.0), "max": Max(9.0), "average": Average{...}}`. Adding a new aggregate type to
+/// "min": Min(1.0), "max": Max(9.0)}`. Adding a new aggregate type to
 /// the system never requires changing this type — only registering one more
 /// [`AggregateFactory`] in the [`Schema`]. Reading a value back out uses the type of the aggregate,
 /// e.g. `set.get::<Sum>()`, rather than a name plus a turbofish.

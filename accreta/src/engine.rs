@@ -16,7 +16,7 @@ use crate::{DimensionId, DimensionValues};
 /// The in-memory aggregation engine.
 ///
 /// `Engine` owns one [`Bucket`] map per [`BucketLevel`]. Raw samples are only ever folded into
-/// [`BucketLevel::Minute`] buckets (via [`Engine::ingest`]); every coarser level is derived
+/// [`BucketLevel::Second`] buckets (via [`Engine::ingest`]); every coarser level is derived
 /// exclusively by [`Engine::rollup`], which merges each level's buckets into the level above,
 /// never touching a [`Sample`] again.
 ///
@@ -138,7 +138,7 @@ impl Engine {
         Ok(DimensionValues::new(ids))
     }
 
-    /// Fold one raw sample into the appropriate minute bucket, creating it if necessary.
+    /// Fold one raw sample into the appropriate second bucket, creating it if necessary.
     ///
     /// This is the only entry point for raw data. Coarser levels are not touched here; call
     /// [`Engine::rollup`] to propagate the change upward.
@@ -162,15 +162,15 @@ impl Engine {
             measures,
             dimensions,
         };
-        let start = BucketLevel::Minute.truncate(sample.timestamp);
+        let start = BucketLevel::Second.truncate(sample.timestamp);
         let schema = self.schema.clone();
-        let minute_buckets = self
+        let second_buckets = self
             .buckets
-            .get_mut(&BucketLevel::Minute)
-            .expect("Minute level always present");
-        minute_buckets
+            .get_mut(&BucketLevel::Second)
+            .expect("Second level always present");
+        second_buckets
             .entry(start)
-            .or_insert_with(|| Bucket::new(BucketLevel::Minute, start))
+            .or_insert_with(|| Bucket::new(BucketLevel::Second, start))
             .update(&sample, &schema);
 
         Ok(())
@@ -192,12 +192,16 @@ impl Engine {
         Ok(())
     }
 
-    /// Recompute every level above [`BucketLevel::Minute`] by merging bucket states upward.
+    /// Recompute every level above [`BucketLevel::Second`] by merging bucket states upward.
     ///
     /// Each level's buckets are rebuilt from scratch from the level directly below it (which may
     /// itself have just been rebuilt earlier in the same call), so calling `rollup` repeatedly is
     /// safe and idempotent — it never double-counts a sample, because it never touches samples at
     /// all, only merges the current [`Bucket`] states.
+    ///
+    /// Because levels above `Second` are rebuilt rather than updated, pruning the `Second` level
+    /// (see [`Engine::prune`]) and then calling `rollup` again recomputes the coarser levels from
+    /// only the surviving seconds. Call `prune` *after* `rollup`, not before.
     pub fn rollup(&mut self) {
         for level in BucketLevel::ALL {
             for parent_level in level.rollup_targets() {

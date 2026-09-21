@@ -33,11 +33,16 @@ pub enum AccretaBucketLevel {
     Week = 3,
     Month = 4,
     Year = 5,
+    /// One-second buckets: the finest granularity, and the level raw samples are
+    /// ingested into. Its value is 6 (not 0) so existing levels keep their numeric
+    /// values and already-compiled C callers are unaffected.
+    Second = 6,
 }
 
 impl From<AccretaBucketLevel> for BucketLevel {
     fn from(value: AccretaBucketLevel) -> Self {
         match value {
+            AccretaBucketLevel::Second => BucketLevel::Second,
             AccretaBucketLevel::Minute => BucketLevel::Minute,
             AccretaBucketLevel::Hour => BucketLevel::Hour,
             AccretaBucketLevel::Day => BucketLevel::Day,
@@ -51,6 +56,7 @@ impl From<AccretaBucketLevel> for BucketLevel {
 impl From<BucketLevel> for AccretaBucketLevel {
     fn from(value: BucketLevel) -> Self {
         match value {
+            BucketLevel::Second => AccretaBucketLevel::Second,
             BucketLevel::Minute => AccretaBucketLevel::Minute,
             BucketLevel::Hour => AccretaBucketLevel::Hour,
             BucketLevel::Day => AccretaBucketLevel::Day,
@@ -101,8 +107,8 @@ pub union AccretaMeasureValueData {
 
 /// A runtime-typed numeric value: either a raw measure input, or an extracted aggregate result.
 ///
-/// `tag` says which field of `value` is active. `Count`'s value is always `u64`; `Average`'s is
-/// always `f64`; `Sum`/`Min`/`Max` match the measure's own [`AccretaMeasureType`].
+/// `tag` says which field of `value` is active. `Count`'s value is always `u64`;
+/// `Sum`/`Min`/`Max` match the measure's own [`AccretaMeasureType`].
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct AccretaMeasureValue {

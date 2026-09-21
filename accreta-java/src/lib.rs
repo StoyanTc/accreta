@@ -3,7 +3,7 @@
 //! builder/engine API.
 //!
 //! Scope matches accreta-node/accreta-ffi for now: built-in aggregates only (`Sum`, `Count`,
-//! `Min`, `Max`, `Average`, `TDigest`), f64 measures only. i64/u64 measures are a follow-up —
+//! `Min`, `Max`, `TDigest`), f64 measures only. i64/u64 measures are a follow-up —
 //! same shape as `schema.rs`'s `nativeMeasureF64`, mirroring accreta-ffi's per-type
 //! `register_measure_*` split.
 

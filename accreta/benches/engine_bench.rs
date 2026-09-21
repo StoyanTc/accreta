@@ -73,7 +73,7 @@ fn bench_ingest(c: &mut Criterion) {
 }
 
 // ---------------------------------------------------------------------
-// Rollup cost at increasing minute-bucket counts. Uses iter_batched so
+// Rollup cost at increasing second-bucket counts. Uses iter_batched so
 // ingestion (setup) isn't counted, only rollup() itself.
 // ---------------------------------------------------------------------
 
@@ -90,7 +90,7 @@ fn bench_rollup(c: &mut Criterion) {
                     let mut engine = Engine::new(schema);
                     for i in 0..n {
                         engine
-                            .ingest(t0 + Duration::minutes(i as i64), [i as f64], ["server-a"])
+                            .ingest(t0 + Duration::seconds(i as i64), [i as f64], ["server-a"])
                             .unwrap();
                     }
                     engine
@@ -156,7 +156,7 @@ fn bench_bucket_merge(c: &mut Criterion) {
                 let mut dictionaries = DimensionDictionaries::new(schema.dimension_count());
 
                 let make_bucket = |dictionaries: &mut DimensionDictionaries, offset: usize| {
-                    let mut bucket = Bucket::new(BucketLevel::Minute, start);
+                    let mut bucket = Bucket::new(BucketLevel::Second, start);
                     for i in 0..groups {
                         let id = dictionaries.dictionaries[0].get_or_insert(&format!("server-{i}"));
                         let s = Sample::new(

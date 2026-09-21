@@ -154,7 +154,8 @@ int main(void)
     unsigned long long count = value.value.u64;
     printf("CPU count: %llu\n", count);
 
-    /* Average is always f64, regardless of the measure's own type. */
+    /* There is no Average aggregate (removed in accreta 0.2.0): the mean is derived from
+ * Sum and Count. */
     printf("CPU average: %.2f\n", count == 0 ? 0 : sum / count);
 
     accreta_aggregate_set_free(result);

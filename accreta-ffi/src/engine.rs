@@ -160,7 +160,8 @@ pub unsafe extern "C" fn accreta_engine_free(engine: *mut AccretaEngine) {
     })
 }
 
-/// Folds one raw sample into `engine`'s minute bucket for `timestamp_ms`.
+/// Folds one raw sample into `engine`'s second bucket for `timestamp_ms` (sub-second
+/// precision is truncated: the bucket is the one-second window containing the timestamp).
 ///
 /// `measures` (`measures_len` entries, in `MeasureId` order) and `dimensions` (`dimensions_len`
 /// NUL-terminated UTF-8 strings, in `DimensionId` order) must each match the schema's counts —
@@ -242,8 +243,13 @@ pub unsafe extern "C" fn accreta_engine_ingest(
     })
 }
 
-/// Recomputes every level above `Minute` by merging bucket states upward. Safe to call
+/// Recomputes every level above `Second` by merging bucket states upward. Safe to call
 /// repeatedly.
+///
+/// Coarser levels are rebuilt from the level below on every call, so call
+/// [`accreta_engine_prune`] *after* this, not before a later rollup: pruning `Second`
+/// buckets and then rolling up again recomputes `Minute` and above from only the surviving
+/// seconds.
 ///
 /// # Safety
 ///

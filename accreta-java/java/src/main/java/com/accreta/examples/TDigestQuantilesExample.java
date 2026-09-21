@@ -8,7 +8,7 @@ import java.time.Instant;
 /**
  * Java port of {@code accreta}'s {@code tdigest_quantiles.rs} example.
  *
- * <p>Registers {@code TDigest} alongside {@code Average} and {@code Count} on one measure,
+ * <p>Registers {@code TDigest} alongside {@code Count} and {@code Sum} on one measure,
  * ingests a spread of latency samples (all under one dimension value, so no grouped-query
  * support is needed for full parity with the Rust original), rolls up to the hour, and reads
  * back quantile estimates — then demonstrates {@code TDigest}'s approximate-associativity
@@ -17,7 +17,7 @@ import java.time.Instant;
 public final class TDigestQuantilesExample {
 
     public static void main(String[] args) throws Exception {
-        // 1. Register TDigest alongside Average on the same measure.
+        // 1. Register TDigest alongside Count and Sum on the same measure.
         Schema schema;
         try (SchemaBuilder builder = new SchemaBuilder()) {
             builder.dimension("route");

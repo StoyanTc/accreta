@@ -1,6 +1,6 @@
 [package]
 name = "accreta-metrics"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 description = "Reference/demo tokio+axum service exposing the accreta mergeable-state aggregation engine over an OpenAPI HTTP surface."
 default-run = "accreta-metrics"
@@ -9,7 +9,7 @@ default-run = "accreta-metrics"
 strip = true
 
 [dependencies]
-accreta = "0.1.1"
+accreta = {path = "../accreta", version = "0.3.0"}
 argon2 = "0.6.0"
 axum = "0.8.9"
 chrono = { version = "0.4.45", features = ["serde"] }

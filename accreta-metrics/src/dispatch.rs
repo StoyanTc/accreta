@@ -17,7 +17,7 @@
 //!    to be tracked separately by this service (see [`crate::state::SchemaMeta`]).
 
 use accreta::aggregate_set::{MeasureBuilder, SchemaBuilder};
-use accreta::aggregates::{Average, Count, Max, Min, Sum, TDigest};
+use accreta::aggregates::{Count, Max, Min, Sum, TDigest};
 use accreta::measures::MeasureType;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -59,7 +59,7 @@ impl std::fmt::Display for ValueType {
 /// Every aggregate name this service knows how to register/read, i.e. every built-in
 /// `accreta::aggregates::*::NAME` constant. Kept as one list so "unknown aggregate" validation
 /// and the two dispatch tables below can never silently drift apart.
-pub const KNOWN_AGGREGATES: &[&str] = &["sum", "count", "min", "max", "average", "tdigest"];
+pub const KNOWN_AGGREGATES: &[&str] = &["sum", "count", "min", "max", "tdigest"];
 
 /// Leak an owned `String` into a `&'static str`.
 ///
@@ -136,9 +136,6 @@ fn register_f64_aggregate(mb: &mut MeasureBuilder<'_, f64>, name: &str) {
         "max" => {
             mb.with::<Max<f64>>();
         }
-        "average" => {
-            mb.with::<Average<f64>>();
-        }
         "tdigest" => {
             mb.with::<TDigest>();
         }
@@ -160,9 +157,6 @@ fn register_i64_aggregate(mb: &mut MeasureBuilder<'_, i64>, name: &str) {
         "max" => {
             mb.with::<Max<i64>>();
         }
-        "average" => {
-            mb.with::<Average<i64>>();
-        }
         // Excluded by validate_measure_aggregates before this is ever reached.
         _ => unreachable!("tdigest/unknown excluded by validation"),
     }
@@ -181,9 +175,6 @@ fn register_u64_aggregate(mb: &mut MeasureBuilder<'_, u64>, name: &str) {
         }
         "max" => {
             mb.with::<Max<u64>>();
-        }
-        "average" => {
-            mb.with::<Average<u64>>();
         }
         _ => unreachable!("tdigest/unknown excluded by validation"),
     }
@@ -241,13 +232,6 @@ fn extract_f64(
         "max" => set
             .get::<Max<f64>>()
             .map(|m| m.value().map(Value::from).unwrap_or(Value::Null)),
-        "average" => set.get::<Average<f64>>().map(|a| {
-            if a.count() == 0 {
-                Value::Null
-            } else {
-                Value::from(a.sum() / a.count() as f64)
-            }
-        }),
         "tdigest" => set
             .get::<TDigest>()
             .map(|d| Value::from(d.quantile(quantile.unwrap_or(0.5)))),
@@ -265,13 +249,6 @@ fn extract_i64(set: &accreta::AggregateSet, aggregate: &str) -> Option<Value> {
         "max" => set
             .get::<Max<i64>>()
             .map(|m| m.value().map(Value::from).unwrap_or(Value::Null)),
-        "average" => set.get::<Average<i64>>().map(|a| {
-            if a.count() == 0 {
-                Value::Null
-            } else {
-                Value::from(a.sum() as f64 / a.count() as f64)
-            }
-        }),
         _ => None,
     }
 }
@@ -286,13 +263,6 @@ fn extract_u64(set: &accreta::AggregateSet, aggregate: &str) -> Option<Value> {
         "max" => set
             .get::<Max<u64>>()
             .map(|m| m.value().map(Value::from).unwrap_or(Value::Null)),
-        "average" => set.get::<Average<u64>>().map(|a| {
-            if a.count() == 0 {
-                Value::Null
-            } else {
-                Value::from(a.sum() as f64 / a.count() as f64)
-            }
-        }),
         _ => None,
     }
 }

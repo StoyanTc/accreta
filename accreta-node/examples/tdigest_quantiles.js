@@ -7,7 +7,7 @@
 
 const { Engine } = require("../index"); // wherever napi-rs's generated entrypoint actually lives
 
-// 1. Register `tdigest` alongside `count`/`average` on the same measure — same reasoning as
+// 1. Register `tdigest` alongside `count`/`sum` on the same measure — same reasoning as
 //    the Rust example: TDigest is heavier than the exact aggregates, so it only goes on the
 //    one measure that actually needs quantiles. `valueType: "f64"` means tdigest registers
 //    directly here; an "i64"/"u64" measure would work identically from this side too — the

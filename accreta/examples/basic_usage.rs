@@ -31,7 +31,7 @@ fn main() {
 
     let mut engine = Engine::new(schema.clone());
 
-    // 2. Ingest some raw samples. Every sample only ever touches a minute-level bucket.
+    // 2. Ingest some raw samples. Every sample only ever touches a second-level bucket.
     let start = Utc.with_ymd_and_hms(2026, 6, 1, 9, 0, 0).unwrap();
     let readings = [
         (0, 21.5, "Firefox"),
@@ -51,13 +51,13 @@ fn main() {
         );
     }
     println!(
-        "ingested {} raw samples into {} minute buckets",
+        "ingested {} raw samples into {} second buckets",
         readings.len(),
-        engine.bucket_count(BucketLevel::Minute)
+        engine.bucket_count(BucketLevel::Second)
     );
 
     // 3. Roll everything up. This never re-reads a Sample — only merges bucket states upward
-    //    through Hour -> Day -> Week -> Month -> Year.
+    //    through Minute -> Hour -> Day -> Week -> Month -> Year.
     engine.rollup();
 
     // 4. Read aggregates back at whatever granularity is useful.
@@ -93,7 +93,7 @@ fn main() {
         let sum = agg.get::<Sum<f64>>().unwrap().value();
         let cnt = agg.get::<Count>().unwrap().value();
         let avg = if cnt > 0 { sum / cnt as f64 } else { 0.0 };
-        println!("  count={} sum={:.2} average={:.2}", sum, cnt, avg,);
+        println!("  count={} sum={:.2} average={:.2}", cnt, sum, avg,);
     }
 
     // 5. Ad-hoc range queries merge whichever buckets already exist at a given level, without
@@ -117,7 +117,7 @@ fn main() {
     //    batch job like this one but not for long-running ingestion. `Retention` bounds memory
     //    at whichever levels you configure; `prune` is the explicit, opt-in step that actually
     //    discards old buckets (rollup itself never deletes anything).
-    println!("\nRetention: keeping only the last hour of minute-level detail");
+    println!("\nRetention: keeping only the last hour of second-level detail");
     let schema_for_retention = {
         let mut b = Schema::builder();
         b.dimension("browser")
@@ -126,7 +126,7 @@ fn main() {
             .with_any::<Count>();
         b.build().unwrap()
     };
-    let policy = accreta::Retention::new().keep(BucketLevel::Minute, Duration::hours(1));
+    let policy = accreta::Retention::new().keep(BucketLevel::Second, Duration::hours(1));
     let mut bounded_engine = Engine::with_retention(schema_for_retention, policy);
     for (minute_offset, value, dim_val) in readings {
         _ = bounded_engine.ingest(
@@ -136,12 +136,12 @@ fn main() {
         );
     }
     println!(
-        "  before prune: {} minute buckets",
-        bounded_engine.bucket_count(BucketLevel::Minute)
+        "  before prune: {} second buckets",
+        bounded_engine.bucket_count(BucketLevel::Second)
     );
     bounded_engine.prune();
     println!(
-        "  after prune:  {} minute buckets (older than 1h before the newest sample were dropped)",
-        bounded_engine.bucket_count(BucketLevel::Minute)
+        "  after prune:  {} second buckets (older than 1h before the newest sample were dropped)",
+        bounded_engine.bucket_count(BucketLevel::Second)
     );
 }

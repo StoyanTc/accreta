@@ -11,12 +11,14 @@ use crate::sample::Sample;
 
 /// A granularity in the bucket hierarchy, from finest to coarsest.
 ///
-/// The hierarchy is fixed (`Minute -> Hour -> Day -> Week -> Month -> Year`); what's extensible
-/// is the *set of aggregates* each bucket at each level tracks (see [`crate::aggregate_set`]),
-/// not the levels themselves.
+/// The hierarchy is fixed (`Second -> Minute -> Hour -> Day -> Week/Month -> Year`); what's
+/// extensible is the *set of aggregates* each bucket at each level tracks (see
+/// [`crate::aggregate_set`]), not the levels themselves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BucketLevel {
-    /// One-minute buckets, the finest granularity.
+    /// One-second buckets, the finest granularity. Raw samples are folded in here.
+    Second,
+    /// One-minute buckets, rolled up from [`BucketLevel::Second`].
     Minute,
     /// One-hour buckets, rolled up from [`BucketLevel::Minute`].
     Hour,
@@ -24,7 +26,7 @@ pub enum BucketLevel {
     Day,
     /// One-week (Monday-start) buckets, rolled up from [`BucketLevel::Day`].
     Week,
-    /// One-month buckets, rolled up from [`BucketLevel::Week`].
+    /// One-month buckets, rolled up from [`BucketLevel::Day`].
     Month,
     /// One-year buckets, the coarsest granularity, rolled up from
     /// [`BucketLevel::Month`].
@@ -33,7 +35,8 @@ pub enum BucketLevel {
 
 impl BucketLevel {
     /// Every level, from finest to coarsest. Rollups always proceed in this order.
-    pub const ALL: [BucketLevel; 6] = [
+    pub const ALL: [BucketLevel; 7] = [
+        BucketLevel::Second,
         BucketLevel::Minute,
         BucketLevel::Hour,
         BucketLevel::Day,
@@ -46,6 +49,7 @@ impl BucketLevel {
     /// top of the hierarchy.
     pub fn parent(self) -> Option<BucketLevel> {
         match self {
+            BucketLevel::Second => Some(BucketLevel::Minute),
             BucketLevel::Minute => Some(BucketLevel::Hour),
             BucketLevel::Hour => Some(BucketLevel::Day),
             BucketLevel::Day => Some(BucketLevel::Week),
@@ -57,6 +61,7 @@ impl BucketLevel {
 
     pub fn rollup_targets(self) -> &'static [BucketLevel] {
         match self {
+            BucketLevel::Second => &[BucketLevel::Minute],
             BucketLevel::Minute => &[BucketLevel::Hour],
             BucketLevel::Hour => &[BucketLevel::Day],
             BucketLevel::Day => &[BucketLevel::Week, BucketLevel::Month],
@@ -71,6 +76,9 @@ impl BucketLevel {
     /// Weeks start on Monday (ISO 8601).
     pub fn truncate(self, dt: DateTime<Utc>) -> DateTime<Utc> {
         match self {
+            BucketLevel::Second => dt
+                .with_nanosecond(0)
+                .expect("valid truncation to second"),
             BucketLevel::Minute => dt
                 .with_second(0)
                 .and_then(|d| d.with_nanosecond(0))
@@ -119,6 +127,7 @@ impl BucketLevel {
     /// for those two).
     pub fn approx_duration(self) -> Duration {
         match self {
+            BucketLevel::Second => Duration::seconds(1),
             BucketLevel::Minute => Duration::minutes(1),
             BucketLevel::Hour => Duration::hours(1),
             BucketLevel::Day => Duration::days(1),
@@ -130,12 +139,13 @@ impl BucketLevel {
 }
 
 impl std::fmt::Display for BucketLevel {
-    /// Writes the lowercase level name (`"minute"`, `"hour"`, ...) — the exhaustive match still
+    /// Writes the lowercase level name (`"second"`, `"minute"`, ...) — the exhaustive match still
     /// forces a compile error if a variant is ever added without updating this, but callers now
     /// get it for free through `{}`, `.to_string()`, `tracing` fields, error messages, etc.
     /// instead of a one-off `label()` method that only this crate knows how to call.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
+            BucketLevel::Second => "second",
             BucketLevel::Minute => "minute",
             BucketLevel::Hour => "hour",
             BucketLevel::Day => "day",
@@ -184,6 +194,7 @@ impl Bucket {
     /// [`Self::start`] and [`Self::level`].
     pub fn end(&self) -> DateTime<Utc> {
         match self.level {
+            BucketLevel::Second => self.start + Duration::seconds(1),
             BucketLevel::Minute => self.start + Duration::minutes(1),
             BucketLevel::Hour => self.start + Duration::hours(1),
             BucketLevel::Day => self.start + Duration::days(1),
@@ -243,7 +254,7 @@ impl Bucket {
     /// Merge all dimension groups from another bucket.
     ///
     /// The dimension key is preserved unchanged. This is what makes the
-    /// minute -> hour -> day -> ... rollup hierarchy mergeable without raw
+    /// second -> minute -> hour -> ... rollup hierarchy mergeable without raw
     /// samples.
     pub fn merge(&mut self, other: &Bucket) {
         for (key, other_sets) in &other.groups {
@@ -271,6 +282,15 @@ mod tests {
             .unwrap()
             .with_nanosecond(500)
             .unwrap()
+    }
+
+    #[test]
+    fn second_truncation_drops_nanoseconds() {
+        let t = dt(2026, 3, 15, 10, 42, 37);
+        assert_eq!(
+            BucketLevel::Second.truncate(t),
+            dt(2026, 3, 15, 10, 42, 37).with_nanosecond(0).unwrap()
+        );
     }
 
     #[test]
@@ -327,6 +347,16 @@ mod tests {
     }
 
     #[test]
+    fn second_bucket_end_is_one_second_later() {
+        let start = Utc.with_ymd_and_hms(2026, 3, 15, 10, 42, 37).unwrap();
+        let bucket = Bucket::new(BucketLevel::Second, start);
+        assert_eq!(
+            bucket.end(),
+            Utc.with_ymd_and_hms(2026, 3, 15, 10, 42, 38).unwrap()
+        );
+    }
+
+    #[test]
     fn month_end_handles_december_rollover() {
         let dec_start = Utc.with_ymd_and_hms(2026, 12, 1, 0, 0, 0).unwrap();
         let bucket = Bucket::new(BucketLevel::Month, dec_start);
@@ -338,12 +368,22 @@ mod tests {
 
     #[test]
     fn parent_chain_terminates_at_year() {
+        assert_eq!(BucketLevel::Second.parent(), Some(BucketLevel::Minute));
         assert_eq!(BucketLevel::Minute.parent(), Some(BucketLevel::Hour));
         assert_eq!(BucketLevel::Year.parent(), None);
     }
 
     #[test]
+    fn second_rolls_up_into_minute_only() {
+        assert_eq!(
+            BucketLevel::Second.rollup_targets(),
+            &[BucketLevel::Minute]
+        );
+    }
+
+    #[test]
     fn display_gives_lowercase_name() {
+        assert_eq!(BucketLevel::Second.to_string(), "second");
         assert_eq!(BucketLevel::Minute.to_string(), "minute");
         assert_eq!(BucketLevel::Year.to_string(), "year");
     }

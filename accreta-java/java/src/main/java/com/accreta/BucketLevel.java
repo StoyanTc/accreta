@@ -9,6 +9,7 @@ package com.accreta;
  * change.
  */
 public enum BucketLevel {
+    SECOND,
     MINUTE,
     HOUR,
     DAY,

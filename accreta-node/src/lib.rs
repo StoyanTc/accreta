@@ -2,7 +2,7 @@
 //!
 //! This binds directly to the `accreta` Rust crate (not through `accreta-ffi`'s C ABI) so there
 //! is no extra marshaling layer between JS and Rust. As with `accreta-ffi`, only the fixed set of
-//! built-in aggregates (`sum`, `count`, `min`, `max`, `average`, `tdigest`) is exposed —
+//! built-in aggregates (`sum`, `count`, `min`, `max`, `tdigest`) is exposed —
 //! custom/generic aggregate state is not reachable from JS, since a JS caller can't supply a Rust
 //! type at compile time.
 //!
@@ -10,7 +10,7 @@
 //!
 //! - **`tdigest` is exposed as an opaque `TDigestHandle` class, not a plain number.** Unlike the
 //!   other aggregates, a quantile estimate needs a `q` parameter supplied at query time, so it
-//!   can't be flattened into an `Option<f64>` field the way `sum`/`min`/`max`/`average` are.
+//!   can't be flattened into an `Option<f64>` field the way `sum`/`min`/`max` are.
 //!   `TDigestHandle::quantile(q)` lets JS ask for any quantile on demand instead of us guessing
 //!   which percentiles the caller wants ahead of time.
 //! - **Shadow measures for cross-type `tdigest`.** `accreta::SchemaBuilder::with` requires
@@ -62,7 +62,7 @@ pub struct MeasureSpec {
     pub name: String,
     /// One of `"f64"`, `"i64"`, `"u64"`.
     pub value_type: String,
-    /// Subset of `"sum"`, `"count"`, `"min"`, `"max"`, `"average"`, `"tdigest"`. `"tdigest"`
+    /// Subset of `"sum"`, `"count"`, `"min"`, `"max"`, `"tdigest"`. `"tdigest"`
     /// works for any `valueType` — see the module docs' note on shadow measures for how `i64`/
     /// `u64` measures get there.
     pub aggregates: Vec<String>,
@@ -71,7 +71,7 @@ pub struct MeasureSpec {
 /// A retention window for one bucket level, in milliseconds.
 #[napi(object)]
 pub struct RetentionSpec {
-    /// One of `"minute"`, `"hour"`, `"day"`, `"week"`, `"month"`, `"year"`.
+    /// One of `"second"`, `"minute"`, `"hour"`, `"day"`, `"week"`, `"month"`, `"year"`.
     pub level: String,
     pub max_age_ms: f64,
 }
@@ -106,7 +106,7 @@ impl TDigestHandle {
 }
 
 /// The subset of built-in aggregates that were actually registered for a measure.
-/// Fields that weren't registered (or have no data yet, for min/max/average) are `null`.
+/// Fields that weren't registered (or have no data yet, for min/max) are `null`.
 ///
 /// `tdigest` is deliberately *not* a field here — `TDigestHandle` is a `#[napi]` class, and class
 /// instances can't be embedded in a `#[napi(object)]` struct (the object macro derives
@@ -246,7 +246,7 @@ impl Engine {
         self.measure_names.clone()
     }
 
-    /// Fold one sample into the appropriate minute bucket. `timestampMs` is milliseconds since
+    /// Fold one sample into the appropriate second bucket. `timestampMs` is milliseconds since
     /// the Unix epoch (e.g. `Date.now()`). `measures` and `dimensions` must match the schema's
     /// registration order and length.
     #[napi]
@@ -306,8 +306,12 @@ impl Engine {
             .map_err(to_napi_err)
     }
 
-    /// Recompute every level above `minute` by merging bucket states upward. Safe to call
+    /// Recompute every level above `second` by merging bucket states upward. Safe to call
     /// repeatedly — it never re-reads raw samples, only merges existing bucket states.
+    ///
+    /// Every level above `second` is rebuilt from the level below on each call, so call
+    /// `prune()` *after* `rollup()`, not before a later one: pruning `second` buckets and
+    /// then rolling up again recomputes `minute` and above from only the surviving seconds.
     #[napi]
     pub fn rollup(&mut self) {
         self.inner.rollup();
@@ -554,6 +558,7 @@ fn parse_value_type(s: &str) -> Result<ValueType> {
 
 fn parse_level(level: &str) -> Result<BucketLevel> {
     match level.to_ascii_lowercase().as_str() {
+        "second" => Ok(BucketLevel::Second),
         "minute" => Ok(BucketLevel::Minute),
         "hour" => Ok(BucketLevel::Hour),
         "day" => Ok(BucketLevel::Day),
@@ -561,7 +566,7 @@ fn parse_level(level: &str) -> Result<BucketLevel> {
         "month" => Ok(BucketLevel::Month),
         "year" => Ok(BucketLevel::Year),
         other => Err(Error::from_reason(format!(
-            "unknown bucket level '{other}', expected one of: minute, hour, day, week, month, year"
+            "unknown bucket level '{other}', expected one of: second, minute, hour, day, week, month, year"
         ))),
     }
 }

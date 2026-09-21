@@ -429,11 +429,11 @@ fn bucket_merge_combines_matching_groups_and_keeps_disjoint_ones() {
 
     let start = Utc.with_ymd_and_hms(2026, 3, 15, 10, 0, 0).unwrap();
 
-    let mut bucket1 = Bucket::new(BucketLevel::Minute, start);
+    let mut bucket1 = Bucket::new(BucketLevel::Second, start);
     bucket1.update(&make_sample(a_id, 1.0), &schema);
     bucket1.update(&make_sample(b_id, 100.0), &schema);
 
-    let mut bucket2 = Bucket::new(BucketLevel::Minute, start);
+    let mut bucket2 = Bucket::new(BucketLevel::Second, start);
     bucket2.update(&make_sample(a_id, 2.0), &schema);
     // bucket2 has no "server-b" sample at all.
 

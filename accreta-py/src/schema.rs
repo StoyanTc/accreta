@@ -11,7 +11,7 @@
 //! `SchemaBuilder::measure`/`with`/`with_any` are also generic over `T`/`A` at the Rust level.
 //! Since Python passes the numeric type and the aggregate list as runtime strings, `measure()`
 //! below does the dispatch that the Rust generics would otherwise do at compile time. `Sum`,
-//! `Min`, `Max`, and `Average` are all registered via `.with::<T>()` (generic over the measure
+//! `Min`, and `Max` are all registered via `.with::<T>()` (generic over the measure
 //! type); only `Count` uses `.with_any()`, confirmed against your `basic_usage` example.
 
 use accreta::aggregate_set::{Schema, SchemaBuilder};
@@ -48,11 +48,11 @@ impl PySchemaBuilder {
     }
 
     /// Register a measure of type `dtype` ("i64" | "u64" | "f64") with the given aggregates
-    /// (any of "sum", "min", "max" — value-based; "count" — value-independent; "average";
+    /// (any of "sum", "min", "max" — value-based; "count" — value-independent;
     /// "tdigest" — approximate quantiles, **f64 measures only**).
     ///
     /// Raises `ValueError` for an unknown dtype/aggregate name, or for "tdigest" on an i64/u64
-    /// measure (`TDigest` is concrete `f64`, not generic like `Sum<T>`/`Average<T>`, so it can
+    /// measure (`TDigest` is concrete `f64`, not generic like `Sum<T>`/`Min<T>`, so it can
     /// only attach to an f64 measure — matches the `MeasureBuilder<T>::with::<A>()` bound
     /// enforced at compile time in the Rust API). Raises `PanicException` (via PyO3's default
     /// panic-catching) for a duplicate measure or aggregate name, or more than 64 dimensions —
@@ -170,11 +170,11 @@ fn parse_dtype(s: &str) -> PyResult<MeasureType> {
 
 fn unknown_aggregate(name: &str) -> PyErr {
     PyValueError::new_err(format!(
-        "unknown aggregate '{name}' (expected one of: sum, min, max, count, average, tdigest)"
+        "unknown aggregate '{name}' (expected one of: sum, min, max, count, tdigest)"
     ))
 }
 
-/// `TDigest` is concrete `f64` (not generic over the measure type like `Sum<T>`/`Average<T>`),
+/// `TDigest` is concrete `f64` (not generic over the measure type like `Sum<T>`/`Min<T>`),
 /// so it can only be registered on an f64 measure — mirrors the up-front validation
 /// accreta-ffi's `accreta_schema_builder_add_measure` does before calling into the Rust
 /// registration, rather than letting a compile-time bound violation surface some other way.
@@ -196,10 +196,10 @@ impl PyRetention {
         Self(accreta::retention::Retention::new())
     }
 
-    /// Keep buckets at `level` ("minute" | "hour" | ... or a `BucketLevel`) for at most
+    /// Keep buckets at `level` ("second" | "minute" | "hour" | ... or a `BucketLevel`) for at most
     /// `max_age_hours` past the newest bucket currently stored at that level. Returns a new
     /// `Retention` (matches the Rust builder's `self -> Self` chaining) — call this repeatedly,
-    /// reassigning, to configure multiple levels: `r = r.keep("minute", 1).keep("hour", 24)`.
+    /// reassigning, to configure multiple levels: `r = r.keep("second", 1).keep("hour", 24)`.
     fn keep(&self, level: &Bound<'_, PyAny>, max_age_hours: f64) -> PyResult<Self> {
         let level = crate::bucket::parse_level(level)?;
         let duration = chrono::Duration::milliseconds((max_age_hours * 3_600_000.0) as i64);

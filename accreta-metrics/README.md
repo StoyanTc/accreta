@@ -45,7 +45,7 @@ docker run -d -p 8080:8080 \
 Env vars (all optional): `ACCRETA_METRICS_ADDR` (default `0.0.0.0:8080`),
 `ACCRETA_METRICS_USERNAME` / `ACCRETA_METRICS_PASSWORD` (default `demo` / `demo123` — the one
 seeded demo credential for v1), `ACCRETA_METRICS_ROLLUP_INTERVAL_SECS` (default `30` — how often
-the background sweep rolls minute buckets up into hour/day/week/month/year; lower this for local
+the background sweep rolls second buckets up through minute/hour/day/week/month/year; lower this for local
 testing so you don't have to wait to query at a coarser level than you ingested at).
 
 ---
@@ -235,10 +235,10 @@ curl -s -X POST http://localhost:8080/schema/ingest \
     ]
   }'
 
-# 4. Query at "minute" level — populated immediately, no wait needed
+# 4. Query at "second" level — populated immediately, no wait needed
 curl -s -X POST http://localhost:8080/schema/query \
   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d '{
-    "level": "minute",
+    "level": "second",
     "time_range": {"start": "2026-08-01T00:00:00Z", "end": "2026-08-02T00:00:00Z"},
     "group_by": ["region"],
     "select": [
@@ -249,9 +249,9 @@ curl -s -X POST http://localhost:8080/schema/query \
     ]
   }'
 
-# 5. Querying at a coarser level ("hour", "day", ...) needs the background rollup sweep to have
-#    run at least once first (default every 30s — see "Defaults and gotchas" below). Either wait,
-#    or restart with ACCRETA_METRICS_ROLLUP_INTERVAL_SECS=2 for fast local iteration, then:
+# 5. Querying a coarser level ("minute", "hour", "day", ...) needs the background rollup sweep to
+#    have run at least once first (default every 30s — see "Defaults and gotchas" below). Either
+#    wait, or restart with ACCRETA_METRICS_ROLLUP_INTERVAL_SECS=2 for fast local iteration, then:
 curl -s -X POST http://localhost:8080/schema/query \
   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d '{
     "level": "hour",
@@ -270,13 +270,21 @@ Behavior that's correct but easy to get tripped up by, since none of it is obvio
 endpoint shapes alone:
 
 - **Querying a coarser level than you just ingested at returns `{"buckets":[]}`, not an error,
-  until the background rollup sweep has run.** `Engine::ingest` only ever writes `minute`
-  buckets; `hour`/`day`/`week`/`month`/`year` are only populated when `Engine::rollup()` runs,
+  until the background rollup sweep has run.** `Engine::ingest` only ever writes `second`
+  buckets; `minute`/`hour`/`day`/`week`/`month`/`year` are only populated when `Engine::rollup()` runs,
   which happens on `rollup.rs`'s background timer (default every 30s,
   `ACCRETA_METRICS_ROLLUP_INTERVAL_SECS` to change it) — not inline on ingest. One sweep tick
-  fully cascades minute all the way up to year, so it's a one-time wait, not a per-level one. If
-  a query comes back empty, try `"level": "minute"` first to confirm the data's actually there
+  fully cascades second all the way up to year, so it's a one-time wait, not a per-level one. If
+  a query comes back empty, try `"level": "second"` first to confirm the data's actually there
   before assuming something's wrong.
+- **`second` is the finest level and the only one written on ingest, so it is also the most
+  numerous.** Every distinct ingest timestamp (truncated to the second) gets its own bucket
+  holding one aggregate state per dimension combination seen in that second, so memory and
+  each sweep's rollup cost grow much faster than they did with `minute` as the base level —
+  `tdigest` measures especially. `rollup()` also rebuilds every level above `second` from the
+  level below on each sweep, so a retention policy that prunes `second` buckets would make
+  later sweeps recompute `minute` and above from only the surviving seconds. This service
+  configures no retention, which avoids that; don't add one until rollup is incremental.
 - **`{"buckets":[]}` and `404 {"error":"no_schema"}` mean different things** — empty buckets means
   the schema exists but nothing (yet) matches the query (often the rollup-timing case above);
   `no_schema` means `POST /schema` was never called for this tenant at all.

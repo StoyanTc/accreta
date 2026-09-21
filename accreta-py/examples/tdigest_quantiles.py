@@ -8,8 +8,8 @@ accreta-py doesn't expose `TDigest`/`Monoid` directly the way the Rust API does 
 `AggregateSet` is the only handle you get, read through `.values()` / `.quantile()`. So
 instead of merging two standalone `TDigest`s to show the "approximate associativity"
 property, this demonstrates the same idea using only the public Python surface: reading p50
-off the pre-rolled-up hour bucket vs. reading p50 by merging the raw minute buckets directly
-(`query_range` at "minute" level spanning the whole hour). Two different merge paths over the
+off the pre-rolled-up hour bucket vs. reading p50 by merging the raw second buckets directly
+(`query_range` at "second" level spanning the whole hour). Two different merge paths over the
 same 20 samples; the *quantile answers* should agree within a small tolerance even though nothing
 here says the two underlying digests are structurally identical.
 
@@ -24,10 +24,10 @@ import accreta
 
 
 def main() -> None:
-    # 1. Register TDigest alongside Count/Average on the same measure. TDigest is
+    # 1. Register TDigest alongside Count/Sum on the same measure. TDigest is
     #    deliberately heavier than the exact aggregates, so it's registered only on the one
-    #    measure that actually needs quantiles ("request_latency_ms") — Average stays the
-    #    cheap, exact general-purpose mean for the same measure, and other measures in a real
+    #    measure that actually needs quantiles ("request_latency_ms") — Sum and Count stay the
+    #    cheap, exact source of the general-purpose mean for the same measure, and other measures in a real
     #    schema wouldn't get TDigest at all unless they too needed quantile queries.
     builder = accreta.SchemaBuilder()
     builder.dimension("route")
@@ -74,20 +74,20 @@ def main() -> None:
     assert p50 < mean, "median should sit below the outlier-skewed mean"
 
     # 4. Approximate associativity, reached through the public API: reading p50 off the
-    #    pre-computed hour bucket merges centroids in one shape (20 minute-buckets folded
-    #    together during rollup()); reading p50 by querying "minute" level across the whole
-    #    hour merges the same 20 buckets in a different shape (query-time merge, no rollup
-    #    involved). Different merge path, same underlying samples — the module docs' point is
-    #    that `quantile()` answers should agree closely even though the two merges aren't
-    #    guaranteed to land on structurally identical digests.
-    minute_set = engine.query_range("minute", hour_start, hour_end, 0)
-    p50_via_minutes = minute_set.quantile("tdigest", 0.50)
+    #    pre-computed hour bucket merges centroids in one shape (20 second buckets folded into
+    #    minute buckets, then into the hour bucket, during rollup()); reading p50 by querying
+    #    "second" level across the whole hour merges the same 20 buckets in a different shape
+    #    (a single query-time merge, no rollup involved). Different merge path, same underlying
+    #    samples — the module docs' point is that `quantile()` answers should agree closely even
+    #    though the two merges aren't guaranteed to land on structurally identical digests.
+    second_set = engine.query_range("second", hour_start, hour_end, 0)
+    p50_via_seconds = second_set.quantile("tdigest", 0.50)
 
     print(
         f"\np50 via hour rollup    : {p50:.2f} ms"
-        f"\np50 via minute merge   : {p50_via_minutes:.2f} ms"
+        f"\np50 via second merge   : {p50_via_seconds:.2f} ms"
     )
-    assert abs(p50 - p50_via_minutes) < 1.0, (
+    assert abs(p50 - p50_via_seconds) < 1.0, (
         "merge path shouldn't meaningfully change the quantile estimate"
     )
 

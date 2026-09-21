@@ -5,8 +5,8 @@
 //!
 //! ## The core idea
 //!
-//! Instead of re-scanning raw data every time you want a coarser summary (hourly from minutes,
-//! daily from hours, ...), every aggregate is represented as a [`Monoid`]: a
+//! Instead of re-scanning raw data every time you want a coarser summary (minutes from seconds,
+//! hourly from minutes, daily from hours, ...), every aggregate is represented as a [`Monoid`]: a
 //! state that can be built incrementally from samples ([`Aggregator`])
 //! and combined with another state of the same kind
 //! ([`Monoid::merge`]) to get the state you'd have gotten by seeing both
@@ -23,11 +23,11 @@
 //! feeds `year`):
 //!
 //! ```text
-//!                                                          +--merge--> week buckets   (dead end)
-//!                                                          |
-//! minute --merge--> hour --merge--> day buckets -----------+
-//!  buckets           buckets                               |
-//!                                                          +--merge--> month buckets --merge--> year buckets
+//!                                                                      +--merge--> week buckets   (dead end)
+//!                                                                      |
+//! second --merge--> minute --merge--> hour --merge--> day buckets -----+
+//!  buckets           buckets           buckets                         |
+//!                                                                      +--merge--> month buckets --merge--> year buckets
 //! ```
 //!
 //! See [`BucketLevel::rollup_targets`] for the exact, authoritative fan-out at each level, and
@@ -35,7 +35,7 @@
 //! parent is — the two aren't the same thing for `day`, so don't assume `parent()` tells you
 //! everywhere a level's data ends up.
 //!
-//! Raw [`Sample`]s are only ever folded into the finest ([`BucketLevel::Minute`])
+//! Raw [`Sample`]s are only ever folded into the finest ([`BucketLevel::Second`])
 //! buckets. Every coarser bucket is derived *exclusively* by merging finer buckets — the engine
 //! never reprocesses raw data to compute a rollup.
 //!
@@ -56,7 +56,7 @@
 //! | [`monoid`] | The `Monoid` trait: how two states combine |
 //! | [`aggregator`] | The `Aggregator` trait: how one sample folds into a state |
 //! | [`erased`] | Type-erasure so heterogeneous aggregates can share a collection |
-//! | [`aggregates`] | Built-in aggregates: `Sum`, `Count`, `Min`, `Max`, `Average`, `TDigest` |
+//! | [`aggregates`] | Built-in aggregates: `Sum`, `Count`, `Min`, `Max`, `TDigest` |
 //! | [`aggregate_set`] | `Schema` + `AggregateSet`: a named collection of states |
 //! | [`bucket`] | `BucketLevel` + `Bucket`: a time window holding an `AggregateSet` per dimension group |
 //! | [`retention`] | `Retention`: how long buckets are kept at each level |
@@ -114,7 +114,7 @@
 //! let t0 = Utc.with_ymd_and_hms(2026, 3, 15, 10, 5, 0).unwrap();
 //! engine.ingest(t0, [12.0], ["server-a"]).unwrap();
 //! engine
-//!     .ingest(t0 + chrono::Duration::minutes(1), [8.0], ["server-a"])
+//!     .ingest(t0 + chrono::Duration::seconds(1), [8.0], ["server-a"])
 //!     .unwrap();
 //!
 //! // Rollups happen purely by merging bucket states upward.

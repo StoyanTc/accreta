@@ -77,8 +77,8 @@ public final class BasicUsageExample {
             }
         }
 
-        // 6. Retention: keep only the last hour of minute-level detail.
-        System.out.println("\nRetention: keeping only the last hour of minute-level detail");
+        // 6. Retention: keep only the last hour of second-level detail.
+        System.out.println("\nRetention: keeping only the last hour of second-level detail");
         Schema retentionSchema;
         try (SchemaBuilder builder = new SchemaBuilder()) {
             builder.dimension("browser");
@@ -86,7 +86,7 @@ public final class BasicUsageExample {
             retentionSchema = builder.build();
         }
 
-        try (Retention policy = new Retention().keep(BucketLevel.MINUTE, Duration.ofHours(1));
+        try (Retention policy = new Retention().keep(BucketLevel.SECOND, Duration.ofHours(1));
              Engine boundedEngine = new Engine(retentionSchema, policy)) {
 
             for (int i = 0; i < values.length; i++) {
@@ -97,10 +97,10 @@ public final class BasicUsageExample {
                 }
             }
 
-            System.out.println("  before prune: " + boundedEngine.bucketCount(BucketLevel.MINUTE) + " minute buckets");
+            System.out.println("  before prune: " + boundedEngine.bucketCount(BucketLevel.SECOND) + " second buckets");
             boundedEngine.prune();
-            System.out.println("  after prune:  " + boundedEngine.bucketCount(BucketLevel.MINUTE)
-                    + " minute buckets (older than 1h before the newest sample were dropped)");
+            System.out.println("  after prune:  " + boundedEngine.bucketCount(BucketLevel.SECOND)
+                    + " second buckets (older than 1h before the newest sample were dropped)");
         }
 
         retentionSchema.close();

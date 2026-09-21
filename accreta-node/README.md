@@ -1,7 +1,7 @@
 # accreta-node
 
 Node.js bindings for [`accreta`](../accreta), a mergeable-state aggregation engine with
-hierarchical time-series rollups (`minute → hour → day → week/month → year`).
+hierarchical time-series rollups (`second → minute → hour → day → week/month → year`).
 
 Built with [napi-rs](https://napi.rs), binding **directly to the `accreta` Rust crate** — not
 through `accreta-ffi`'s C ABI. That avoids a second marshaling layer: napi-rs talks to Rust
@@ -86,15 +86,18 @@ new Engine({
 })
 ```
 
-`BucketLevel` is `"minute" | "hour" | "day" | "week" | "month" | "year"`.
+`BucketLevel` is `"second" | "minute" | "hour" | "day" | "week" | "month" | "year"`.
+
+Raw samples are always ingested into `second` buckets; every other level is derived by
+`rollup()`, so until the first `rollup()` only `second` holds data.
 
 ### Methods
 
 | Method | Notes |
 |---|---|
-| `engine.ingest(timestampMs, measures: number[], dimensions: string[])` | Folds one sample into the minute bucket. Throws if lengths don't match the schema. |
-| `engine.rollup()` | Merges every level upward. Idempotent — safe to call repeatedly. |
-| `engine.prune()` | Discards buckets past their level's configured retention window. No-op for unconfigured levels. |
+| `engine.ingest(timestampMs, measures: number[], dimensions: string[])` | Folds one sample into the second bucket (sub-second precision is truncated). Throws if lengths don't match the schema. |
+| `engine.rollup()` | Merges every level upward from `second`. Idempotent — safe to call repeatedly. Rebuilds each level above `second` from the level below on every call. |
+| `engine.prune()` | Discards buckets past their level's configured retention window. No-op for unconfigured levels. Call it **after** `rollup()`: pruning `second` buckets and then rolling up again recomputes `minute` and above from only the surviving seconds. |
 | `engine.bucketCount(level)` | Number of buckets currently stored at `level`. |
 | `engine.buckets(level)` | All buckets at `level`, each with every dimension group's resolved aggregates. |
 | `engine.queryRange(level, startMs, endMs, measureIndex)` | Merges all buckets overlapping the range into one `AggregateResult`, across all groups. |

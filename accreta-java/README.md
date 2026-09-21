@@ -44,11 +44,20 @@ accreta-java/
 - Ungrouped `query_range` only — `query_range_grouped` (returning a `HashMap<DimensionKey,
   AggregateSet>`) is a follow-up; it needs a `DimensionKey` Java wrapper first.
 
+## Bucket levels
+
+`BucketLevel` runs `SECOND, MINUTE, HOUR, DAY, WEEK, MONTH, YEAR`. Raw samples are always
+ingested into `SECOND` buckets; every other level is derived by `Engine.rollup()`. The Java
+enum's ordinals are mapped straight onto the Rust enum in `src/engine.rs`
+(`bucket_level_from_ordinal`), so the two must be edited together. Because `rollup()`
+rebuilds every level above `SECOND`, call `prune()` *after* `rollup()`, not before a later
+one.
+
 ## Building
 
 This crate hasn't been compiled against your actual `accreta` sources yet — it was written
 against the files you shared, not built in CI here, so expect the first `cargo build` to surface
-a few naming/signature mismatches to fix (most likely spots: exact `Min`/`Max`/`Average` method
+a few naming/signature mismatches to fix (most likely spots: exact `Min`/`Max` method
 names in `aggregates.rs`, and whether `f64`/`String` really implement `Into<MeasureValue>`
 directly vs. needing `.into()` at a different point).
 

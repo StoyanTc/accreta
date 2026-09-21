@@ -2,7 +2,7 @@
 //!
 //! This binds directly to the `accreta` Rust crate (not through `accreta-ffi`'s C ABI), the same
 //! scope decision as `accreta-node`: only the fixed set of built-in aggregates (`sum`, `count`,
-//! `min`, `max`, `average`, `tdigest`) is exposed — custom/generic aggregate state is not
+//! `min`, `max`, `tdigest`) is exposed — custom/generic aggregate state is not
 //! reachable from JS, since a JS caller can't supply a Rust type at compile time.
 //!
 //! ## Differences from `accreta-node`, and why
@@ -89,7 +89,7 @@ pub struct MeasureSpec {
     pub name: String,
     /// One of `"f64"`, `"i64"`, `"u64"`.
     pub value_type: String,
-    /// Subset of `"sum"`, `"count"`, `"min"`, `"max"`, `"average"`, `"tdigest"`. `"tdigest"`
+    /// Subset of `"sum"`, `"count"`, `"min"`, `"max"`, `"tdigest"`. `"tdigest"`
     /// works for any `valueType` — see the module docs' note on shadow measures.
     pub aggregates: Vec<String>,
 }
@@ -98,7 +98,7 @@ pub struct MeasureSpec {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RetentionSpec {
-    /// One of `"minute"`, `"hour"`, `"day"`, `"week"`, `"month"`, `"year"`.
+    /// One of `"second"`, `"minute"`, `"hour"`, `"day"`, `"week"`, `"month"`, `"year"`.
     pub level: String,
     pub max_age_ms: f64,
 }
@@ -273,7 +273,7 @@ impl Engine {
         self.measure_names.clone()
     }
 
-    /// Fold one sample into the appropriate minute bucket. `timestamp_ms` is milliseconds since
+    /// Fold one sample into the appropriate second bucket (sub-second precision is truncated). `timestamp_ms` is milliseconds since
     /// the Unix epoch (e.g. `Date.now()`). `measures` and `dimensions` must match the schema's
     /// registration order and length.
     #[wasm_bindgen]
@@ -332,8 +332,14 @@ impl Engine {
             .map_err(|e| JsError::new(&e.to_string()))
     }
 
-    /// Recompute every level above `minute` by merging bucket states upward. Safe to call
+    /// Recompute every level above `second` by merging bucket states upward. Safe to call
     /// repeatedly — it never re-reads raw samples, only merges existing bucket states.
+    ///
+    /// Every level above `second` is rebuilt from the level below on each call. So if a
+    /// retention policy has pruned `second` (or `minute`, ...) buckets, the next `rollup()`
+    /// recomputes the coarser levels from only the surviving buckets and the pruned data
+    /// disappears from them too. Use retention only in an ingest -> rollup -> prune -> read
+    /// flow, not with periodic rollups, until rollup is incremental.
     #[wasm_bindgen]
     pub fn rollup(&mut self) {
         self.inner.rollup();
@@ -578,6 +584,7 @@ fn parse_value_type(s: &str) -> Result<ValueType, JsError> {
 
 fn parse_level(level: &str) -> Result<BucketLevel, JsError> {
     match level.to_ascii_lowercase().as_str() {
+        "second" => Ok(BucketLevel::Second),
         "minute" => Ok(BucketLevel::Minute),
         "hour" => Ok(BucketLevel::Hour),
         "day" => Ok(BucketLevel::Day),
@@ -585,7 +592,7 @@ fn parse_level(level: &str) -> Result<BucketLevel, JsError> {
         "month" => Ok(BucketLevel::Month),
         "year" => Ok(BucketLevel::Year),
         other => Err(JsError::new(&format!(
-            "unknown bucket level '{other}', expected one of: minute, hour, day, week, month, year"
+            "unknown bucket level '{other}', expected one of: second, minute, hour, day, week, month, year"
         ))),
     }
 }

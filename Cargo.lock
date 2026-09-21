@@ -4,17 +4,7 @@ version = 4
 
 [[package]]
 name = "accreta"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1979225e1bcec8b1b718dd59d89fcbf147465095bbce1d86002b5cfbbe4893e"
-dependencies = [
- "chrono",
- "thiserror 2.0.20",
-]
-
-[[package]]
-name = "accreta"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "criterion",
@@ -23,27 +13,27 @@ dependencies = [
 
 [[package]]
 name = "accreta-ffi"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
- "accreta 0.2.0",
+ "accreta",
  "cbindgen",
  "chrono",
 ]
 
 [[package]]
 name = "accreta-java"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
- "accreta 0.2.0",
+ "accreta",
  "chrono",
  "jni",
 ]
 
 [[package]]
 name = "accreta-metrics"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
- "accreta 0.1.1",
+ "accreta",
  "argon2",
  "axum",
  "chrono",
@@ -63,9 +53,9 @@ dependencies = [
 
 [[package]]
 name = "accreta-node"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
- "accreta 0.2.0",
+ "accreta",
  "chrono",
  "napi",
  "napi-build",
@@ -76,7 +66,7 @@ dependencies = [
 name = "accreta-py"
 version = "0.2.0"
 dependencies = [
- "accreta 0.2.0",
+ "accreta",
  "chrono",
  "pyo3",
 ]
@@ -85,7 +75,7 @@ dependencies = [
 name = "accreta-wasm"
 version = "0.1.0"
 dependencies = [
- "accreta 0.2.0",
+ "accreta",
  "chrono",
  "console_error_panic_hook",
  "serde",

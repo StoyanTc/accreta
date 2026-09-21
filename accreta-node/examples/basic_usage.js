@@ -18,7 +18,7 @@ const engine = new Engine({
   ],
 });
 
-// 1. Ingest some raw samples. Every sample only ever touches a minute-level bucket.
+// 1. Ingest some raw samples. Every sample only ever touches a second-level bucket.
 const start = Date.UTC(2026, 5, 1, 9, 0, 0); // 2026-06-01T09:00:00Z
 const readings = [
   [0, 21.5, "Firefox"],
@@ -35,7 +35,7 @@ for (const [minuteOffset, value, browser] of readings) {
   engine.ingest(start + minuteOffset * 60_000, [value], [browser]);
 }
 console.log(
-  `ingested ${readings.length} raw samples into ${engine.bucketCount("minute")} minute buckets`
+  `ingested ${readings.length} raw samples into ${engine.bucketCount("second")} second buckets`
 );
 
 // 2. Roll everything up. This only merges bucket states upward — it never re-reads a sample.
@@ -80,16 +80,18 @@ for (const row of engine.queryRangeGrouped("hour", start, start + 3 * 3_600_000,
   console.log(`  browser=${row.dimensionValues[0]} sum=${row.aggregate.sum.toFixed(2)}`);
 }
 
-// 6. Retention: keep only the last hour of minute-level detail.
-console.log("\nRetention: keeping only the last hour of minute-level detail");
+// 6. Retention: keep only the last hour of second-level detail.
+//    (Bound `second`, not `minute`: `minute` is now a level derived by rollup(), and this engine
+//    never calls rollup(), so its minute level would always be empty.)
+console.log("\nRetention: keeping only the last hour of second-level detail");
 const boundedEngine = new Engine({
   dimensions: ["browser"],
   measures: [{ name: "visits", valueType: "f64", aggregates: ["sum", "count"] }],
-  retention: [{ level: "minute", maxAgeMs: 3_600_000 }],
+  retention: [{ level: "second", maxAgeMs: 3_600_000 }],
 });
 for (const [minuteOffset, value, browser] of readings) {
   boundedEngine.ingest(start + minuteOffset * 60_000, [value], [browser]);
 }
-console.log(`  before prune: ${boundedEngine.bucketCount("minute")} minute buckets`);
+console.log(`  before prune: ${boundedEngine.bucketCount("second")} second buckets`);
 boundedEngine.prune();
-console.log(`  after prune:  ${boundedEngine.bucketCount("minute")} minute buckets`);
+console.log(`  after prune:  ${boundedEngine.bucketCount("second")} second buckets`);

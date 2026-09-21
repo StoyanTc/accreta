@@ -13,6 +13,7 @@ use pyo3::prelude::*;
 #[pyclass(frozen, name = "BucketLevel", eq, from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum PyBucketLevel {
+    Second,
     Minute,
     Hour,
     Day,
@@ -24,6 +25,7 @@ pub enum PyBucketLevel {
 impl From<PyBucketLevel> for BucketLevel {
     fn from(level: PyBucketLevel) -> Self {
         match level {
+            PyBucketLevel::Second => BucketLevel::Second,
             PyBucketLevel::Minute => BucketLevel::Minute,
             PyBucketLevel::Hour => BucketLevel::Hour,
             PyBucketLevel::Day => BucketLevel::Day,
@@ -37,6 +39,7 @@ impl From<PyBucketLevel> for BucketLevel {
 impl From<BucketLevel> for PyBucketLevel {
     fn from(level: BucketLevel) -> Self {
         match level {
+            BucketLevel::Second => PyBucketLevel::Second,
             BucketLevel::Minute => PyBucketLevel::Minute,
             BucketLevel::Hour => PyBucketLevel::Hour,
             BucketLevel::Day => PyBucketLevel::Day,
@@ -56,6 +59,7 @@ pub fn parse_level(value: &Bound<'_, PyAny>) -> PyResult<BucketLevel> {
 
     if let Ok(name) = value.extract::<String>() {
         return match name.to_ascii_lowercase().as_str() {
+            "second" => Ok(BucketLevel::Second),
             "minute" => Ok(BucketLevel::Minute),
             "hour" => Ok(BucketLevel::Hour),
             "day" => Ok(BucketLevel::Day),
@@ -63,12 +67,12 @@ pub fn parse_level(value: &Bound<'_, PyAny>) -> PyResult<BucketLevel> {
             "month" => Ok(BucketLevel::Month),
             "year" => Ok(BucketLevel::Year),
             other => Err(PyValueError::new_err(format!(
-                "unknown bucket level '{other}' (expected one of: minute, hour, day, week, month, year)"
+                "unknown bucket level '{other}' (expected one of: second, minute, hour, day, week, month, year)"
             ))),
         };
     }
 
     Err(PyValueError::new_err(
-        "expected a BucketLevel or one of the strings: minute, hour, day, week, month, year",
+        "expected a BucketLevel or one of the strings: second, minute, hour, day, week, month, year",
     ))
 }

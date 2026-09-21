@@ -1,8 +1,14 @@
 //! Background sweep: periodically rolls up and prunes the tenant's engine, if one exists yet.
 //!
 //! Not triggered inline by request handlers (see design summary) — ingest only ever touches
-//! `BucketLevel::Minute`; this task is what propagates that up through the hierarchy and (once a
+//! `BucketLevel::Second`; this task is what propagates that up through the hierarchy and (once a
 //! retention policy is configured) prunes old buckets.
+//!
+//! `rollup()` rebuilds every level above `Second` from the level below on each sweep, and the
+//! sweep prunes *after* rolling up. That order is what keeps coarser levels complete: if a
+//! retention policy pruning `Second` (or `Minute`, ...) is ever configured, the next sweep's
+//! rollup would recompute the levels above it from only the surviving buckets. Make rollup
+//! incremental before adding one.
 
 use std::sync::Arc;
 use std::sync::atomic::Ordering;

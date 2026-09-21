@@ -22,7 +22,7 @@ def main() -> None:
 
     engine = accreta.Engine(schema)
 
-    # 2. Ingest raw samples. Every sample only ever touches a minute-level bucket.
+    # 2. Ingest raw samples. Every sample only ever touches a second-level bucket.
     start = datetime(2026, 6, 1, 9, 0, tzinfo=timezone.utc)
     readings = [
         (0, 21.5, "Firefox"),
@@ -39,7 +39,7 @@ def main() -> None:
 
     print(
         f"ingested {len(readings)} raw samples into "
-        f"{engine.bucket_count('minute')} minute buckets"
+        f"{engine.bucket_count('second')} second buckets"
     )
 
     # 3. Roll everything up. This never re-reads a sample — only merges bucket states upward.
@@ -89,21 +89,24 @@ def main() -> None:
     #    batch job like this one but not for long-running ingestion. `Retention` bounds memory
     #    at whichever levels you configure; `prune()` is the explicit, opt-in step that actually
     #    discards old buckets (rollup itself never deletes anything).
-    print("\nRetention: keeping only the last hour of minute-level detail")
+    #
+    #    Bound `second`, not `minute`: `minute` is now a level derived by rollup(), and this
+    #    engine never calls rollup(), so its minute level would always be empty.
+    print("\nRetention: keeping only the last hour of second-level detail")
     retention_builder = accreta.SchemaBuilder()
     retention_builder.dimension("browser")
     retention_builder.measure("visits", "f64", ["sum", "count"])
     retention_schema = retention_builder.build()
 
-    policy = accreta.Retention().keep("minute", max_age_hours=1)
+    policy = accreta.Retention().keep("second", max_age_hours=1)
     bounded_engine = accreta.Engine(retention_schema, retention=policy)
     for minute_offset, value, dim_val in readings:
         bounded_engine.ingest(start + timedelta(minutes=minute_offset), [value], [dim_val])
 
-    print(f"  before prune: {bounded_engine.bucket_count('minute')} minute buckets")
+    print(f"  before prune: {bounded_engine.bucket_count('second')} second buckets")
     bounded_engine.prune()
     print(
-        f"  after prune:  {bounded_engine.bucket_count('minute')} minute buckets "
+        f"  after prune:  {bounded_engine.bucket_count('second')} second buckets "
         "(older than 1h before the newest sample were dropped)"
     )
 

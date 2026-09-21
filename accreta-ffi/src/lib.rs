@@ -26,7 +26,7 @@
 //!
 //! This crate deliberately does **not** expose accreta's generic custom-aggregate machinery
 //! (`Monoid` / `Aggregator` / `AggregateFactory`) across the C boundary — only the fixed set of
-//! built-in aggregate kinds (`Sum`, `Count`, `Min`, `Max`, `Average`). A C caller selects which of
+//! built-in aggregate kinds (`Sum`, `Count`, `Min`, `Max`, `TDigest`). A C caller selects which of
 //! those to attach to a measure when building the schema; nothing outside this process can ever
 //! register a new aggregate kind.
 

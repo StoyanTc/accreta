@@ -1,6 +1,6 @@
 [package]
 name = "accreta-java"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 
 # Builds a cdylib so the JVM can `System.loadLibrary("accreta_java")`.
@@ -11,6 +11,6 @@ name = "accreta_java"
 crate-type = ["cdylib"]
 
 [dependencies]
-accreta = { path = "../accreta", version = "0.2.0" }
+accreta = { path = "../accreta", version = "0.3.0" }
 jni = "0.21"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }

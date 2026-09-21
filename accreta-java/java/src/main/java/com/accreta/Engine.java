@@ -34,7 +34,8 @@ public final class Engine implements AutoCloseable {
     }
 
     /**
-     * Folds one sample into the minute bucket for {@code timestamp}.
+     * Folds one sample into the second bucket for {@code timestamp} (sub-second precision
+     * is truncated).
      *
      * @param measures   values for every measure in the schema, in registration order
      * @param dimensions values for every dimension in the schema, in registration order
@@ -44,7 +45,12 @@ public final class Engine implements AutoCloseable {
         nativeIngest(handle, timestamp.toEpochMilli(), measures, dimensions);
     }
 
-    /** Recomputes every level above Minute by merging bucket states upward. Idempotent. */
+    /**
+     * Recomputes every level above {@link BucketLevel#SECOND} by merging bucket states upward.
+     * Idempotent. Coarser levels are rebuilt from the level below on every call, so call
+     * {@link #prune()} <em>after</em> this rather than before a later rollup: pruning SECOND
+     * buckets and rolling up again recomputes MINUTE and above from only the surviving seconds.
+     */
     public void rollup() {
         checkOpen();
         nativeRollup(handle);

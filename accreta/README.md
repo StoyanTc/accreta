@@ -11,26 +11,26 @@ trait-based framework — with hierarchical time-series rollups as its first app
 
 ## Why accreta
 
-Instead of re-scanning raw data every time you want a coarser summary (hourly from minutes,
-daily from hours, ...), accreta keeps every summary in a form that can be combined with another
-summary of the same kind to get the answer you'd have gotten by seeing both at once. Rollups
-become cheap merges of existing state.
+Instead of re-scanning raw data every time you want a coarser summary (minutes from seconds,
+hourly from minutes, daily from hours, ...), accreta keeps every summary in a form that can be
+combined with another summary of the same kind to get the answer you'd have gotten by seeing both
+at once. Rollups become cheap merges of existing state.
 
 The hierarchy is **not** a straight chain, though — `day` buckets roll up directly into *both*
 `week` and `month`, and `week` is a dead end that never rolls up any further (only `month` feeds
 `year`):
 
 ```text
-                                                         +--merge--> week buckets   (dead end)
-                                                         |
-minute --merge--> hour --merge--> day buckets -----------+
- buckets           buckets                               |
-                                                         +--merge--> month buckets --merge--> year buckets
+                                                                      +--merge--> week buckets   (dead end)
+                                                                      |
+second --merge--> minute --merge--> hour --merge--> day buckets ------+
+ buckets           buckets           buckets                          |
+                                                                      +--merge--> month buckets --merge--> year buckets
 ```
 
 See `BucketLevel::rollup_targets` for the exact, authoritative fan-out at each level.
 
-Raw samples are only ever folded into the finest (`Minute`) buckets. Every coarser bucket is
+Raw samples are only ever folded into the finest (`Second`) buckets. Every coarser bucket is
 derived *exclusively* by merging finer buckets — the engine never reprocesses raw data to
 compute a rollup, and `rollup()` is idempotent to call as often as you like.
 
@@ -38,7 +38,7 @@ compute a rollup, and `rollup()` is idempotent to call as often as you like.
 
 ```toml
 [dependencies]
-accreta = "0.1"
+accreta = "0.3"
 ```
 
 ## Quick start
@@ -68,7 +68,7 @@ let mut engine = Engine::new(schema);
 let t0 = Utc.with_ymd_and_hms(2026, 3, 15, 10, 5, 0).unwrap();
 engine.ingest(t0, vec![12.0], vec!["Firefox"]).unwrap();
 engine
-    .ingest(t0 + Duration::minutes(1), vec![8.0], vec!["Firefox"])
+    .ingest(t0 + Duration::seconds(1), vec![8.0], vec!["Firefox"])
     .unwrap();
 
 // 3. Roll up whenever you want coarser buckets. Cheap — it only merges
@@ -105,10 +105,10 @@ ad-hoc queries and retention.
 
 ## Features
 
-- **Hierarchical rollups** — a fixed `Minute -> Hour -> Day -> Week -> Month -> Year` set of
-  levels, but the rollup path between them fans out rather than chaining straight through: `day`
-  feeds both `week` and `month` directly, `week` never rolls up any further, and `month` feeds
-  `year`. See `BucketLevel::rollup_targets` for the exact fan-out at each level.
+- **Hierarchical rollups** — a fixed `Second -> Minute -> Hour -> Day -> Week -> Month -> Year`
+  set of levels, but the rollup path between them fans out rather than chaining straight
+  through: `day` feeds both `week` and `month` directly, `week` never rolls up any further, and
+  `month` feeds `year`. See `BucketLevel::rollup_targets` for the exact fan-out at each level.
 - **Pluggable aggregates** — `Sum`, `Count`, `Min`, `Max`, and `TDigest` ship built
   in; you can add your own (e.g. running variance) without changing anything in the engine — see
   [Adding a custom aggregate](#adding-a-custom-aggregate) below.
@@ -159,8 +159,10 @@ compression-dependent error bound, not exactly. Two practical consequences:
 
 - Comparing two digests with `==` checks structural equality, not "represents the same
   distribution" — prefer comparing `quantile()` outputs within a tolerance instead.
-- Error can compound across repeated rollups (`Minute` → `Hour` → `Day` → `Week`/`Month` →
-  `Year`); pick a larger compression if you need a tighter bound on deeply-rolled-up buckets.
+- Error can compound across repeated rollups (`Second` → `Minute` → `Hour` → `Day` →
+  `Week`/`Month` → `Year`); pick a larger compression if you need a tighter bound on
+  deeply-rolled-up buckets. Note that the extra `Second` level adds one more merge stage than
+  before.
 
 Register it on a measure like any other aggregate, and read back estimates with `quantile(q)`:
 
@@ -177,9 +179,9 @@ let p99 = digest.quantile(0.99);
 
 `TDigest` is deliberately heavier than the other built-ins (heap-allocated centroid storage,
 buffered/lazy compression) and is meant to be registered only on the handful of measures that
-actually need quantiles, which remains the cheap, exact,
-general-purpose mean. Registering both on the same measure is a common pairing when you want
-"typical value" and "distribution shape" together. See
+actually need quantiles. Registering it on the same measure as `Sum` and `Count` (whose
+ratio is the exact mean) is a common pairing when you want both a "typical value" and the
+"distribution shape". See
 [`examples/tdigest_quantiles.rs`](examples/tdigest_quantiles.rs) for a complete walkthrough.
 
 ## Retention and pruning
@@ -189,7 +191,7 @@ bounded batch job, but not for long-running ingestion. Configure a `Retention` p
 and call `prune()` explicitly (typically right after `rollup()`) to bound memory:
 
 ```rust,ignore
-let policy = accreta::Retention::new().keep(BucketLevel::Minute, Duration::hours(1));
+let policy = accreta::Retention::new().keep(BucketLevel::Second, Duration::hours(1));
 let mut engine = Engine::with_retention(schema, policy);
 // ... ingest, rollup ...
 engine.prune();
@@ -199,6 +201,10 @@ engine.prune();
 time, so this behaves the same way for live ingestion and for replaying historical data. Levels
 with no configured limit are left untouched. `rollup()` never deletes anything — `prune()` is
 the only place data leaves the engine.
+
+Because `rollup()` rebuilds every level above `Second` from the level below it, always call
+`prune()` *after* `rollup()`, never before a subsequent `rollup()`: pruning `Second` buckets and
+then rolling up again would recompute the coarser levels from only the surviving seconds.
 
 ## Module map
 

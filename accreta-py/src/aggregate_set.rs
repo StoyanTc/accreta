@@ -93,7 +93,6 @@ fn parse_dtype(s: &str) -> PyResult<MeasureType> {
 
 /// Downcast one erased aggregate state to a concrete built-in type and convert it into a
 /// Python object, per the shapes confirmed in the module-level doc comment.
-
 pub fn extract_aggregate_value<'py>(
     py: Python<'py>,
     name: &str,

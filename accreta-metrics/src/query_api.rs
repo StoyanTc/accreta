@@ -49,6 +49,9 @@ pub struct SelectItem {
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct QueryRequest {
+    /// Bucket granularity: one of `second`, `minute`, `hour`, `day`, `week`, `month`, `year`.
+    /// Only `second` is populated on ingest; every coarser level is filled in by the
+    /// background rollup sweep.
     pub level: String,
     pub time_range: TimeRange,
     #[serde(default)]
@@ -77,6 +80,7 @@ pub struct QueryResponse {
 
 fn parse_level(s: &str) -> Result<BucketLevel, ApiError> {
     match s {
+        "second" => Ok(BucketLevel::Second),
         "minute" => Ok(BucketLevel::Minute),
         "hour" => Ok(BucketLevel::Hour),
         "day" => Ok(BucketLevel::Day),

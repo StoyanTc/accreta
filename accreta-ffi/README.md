@@ -227,6 +227,15 @@ Rollup targets are defined by accreta's bucket hierarchy. A source level can
 have multiple rollup targets; for example, day-level data can contribute
 independently to week and month rollups.
 
+The bucket levels, finest to coarsest, are `ACCRETA_BUCKET_LEVEL_SECOND`,
+`_MINUTE`, `_HOUR`, `_DAY`, `_WEEK`, `_MONTH` and `_YEAR`. Raw samples are always
+ingested into `SECOND` buckets; every other level is derived by `rollup()`.
+`SECOND` has the numeric value 6 so that the values of the pre-existing levels did
+not change.
+
+Because `rollup()` rebuilds every level above `SECOND` from the level below it, call
+`accreta_engine_prune()` *after* `rollup()` rather than before a later one.
+
 ## Queries
 
 The C ABI provides both ungrouped and grouped range queries.
@@ -288,8 +297,9 @@ type:
 
 * `Count` is always returned as `u64`;
 
-Average is represented as a computed `f64` result by the C API. Internally,
-accreta maintains the mergeable average state as `(sum, count)`.
+There is no average aggregate: it was removed from accreta in 0.2.0 because it can
+always be derived from `sum` and `count`. Register both on the measure and compute
+`sum / count` on the C side (guarding against `count == 0`), as `examples/c` does.
 
 ## Grouped queries
 

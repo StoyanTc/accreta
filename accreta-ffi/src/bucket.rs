@@ -26,10 +26,10 @@ pub struct AccretaBucket(pub(crate) Bucket);
 /// returned by the corresponding constructor and must not have been freed already.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn accreta_bucket_level(bucket: *const AccretaBucket) -> AccretaBucketLevel {
-    ffi_guard(AccretaBucketLevel::Minute, || {
+    ffi_guard(AccretaBucketLevel::Second, || {
         match unsafe { bucket.as_ref() } {
             Some(bucket) => bucket.0.level().into(),
-            None => AccretaBucketLevel::Minute,
+            None => AccretaBucketLevel::Second,
         }
     })
 }

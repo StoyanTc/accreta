@@ -3,11 +3,11 @@
 PyO3 bindings for [`accreta`](../accreta) — a mergeable-state aggregation engine with
 hierarchical time-series rollups:
 ```text
-                                                         +--merge--> week buckets   (dead end)
-                                                         |
-minute --merge--> hour --merge--> day buckets -----------+
- buckets           buckets                               |
-                                                         +--merge--> month buckets --merge--> year buckets
+                                                                      +--merge--> week buckets   (dead end)
+                                                                      |
+second --merge--> minute --merge--> hour --merge--> day buckets ------+
+ buckets           buckets           buckets                          |
+                                                                      +--merge--> month buckets --merge--> year buckets
 ```
 
 ## Install
@@ -33,7 +33,7 @@ schema = builder.build()
 
 engine = accreta.Engine(schema)
 
-# 2. Ingest raw samples — always into the minute-level bucket.
+# 2. Ingest raw samples — always into the second-level bucket.
 t0 = datetime(2026, 6, 1, 9, 0, tzinfo=timezone.utc)
 engine.ingest(t0, [21.5], ["Firefox"])
 engine.ingest(t0, [22.0], ["Firefox"])
@@ -47,6 +47,18 @@ result = engine.query_range("hour", t0, t0, measure_index=0)
 
 > `query_range`'s `range_end` above is illustrative only — pass a real end timestamp; see
 > `examples/basic_usage.py` for a complete, runnable version of this walkthrough.
+
+## Bucket levels
+
+`BucketLevel` runs `second, minute, hour, day, week, month, year` (finest to coarsest). Every
+method that takes a level accepts either a `BucketLevel` member or the equivalent lowercase
+string (`"second"`, `"minute"`, ...).
+
+Raw samples are always ingested into `second` buckets; every other level is derived by
+`Engine.rollup()`, so until the first `rollup()` only `"second"` holds data. Because `rollup()`
+rebuilds every level above `second` from the level below on each call, call `Engine.prune()`
+*after* `rollup()`, not before a later one: pruning `second` buckets and then rolling up again
+recomputes `minute` and above from only the surviving seconds.
 
 ## API surface
 

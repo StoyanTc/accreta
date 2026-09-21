@@ -48,7 +48,8 @@ impl PyEngine {
         self.inner.set_retention(retention.0);
     }
 
-    /// Fold one sample into the engine.
+    /// Fold one sample into the engine, into the `second` bucket containing `timestamp`
+    /// (sub-second precision is truncated).
     ///
     /// `measures` is a list of Python numbers, one per measure, in schema registration order —
     /// each converted according to that measure's declared dtype (see `measures.py_to_measure_value`).
@@ -71,8 +72,12 @@ impl PyEngine {
             .map_err(ingest_err)
     }
 
-    /// Recompute every level above `minute` by merging bucket states upward. Safe to call
+    /// Recompute every level above `second` by merging bucket states upward. Safe to call
     /// repeatedly (idempotent) — see `Engine::rollup`'s Rust docs.
+    ///
+    /// Every level above `second` is rebuilt from the level below on each call, so call
+    /// `prune()` *after* `rollup()`, not before a later one: pruning `second` buckets and
+    /// then rolling up again recomputes `minute` and above from only the surviving seconds.
     fn rollup(&mut self) {
         self.inner.rollup();
     }
@@ -82,7 +87,7 @@ impl PyEngine {
         self.inner.prune();
     }
 
-    /// How many buckets are currently stored at `level` ("minute" | "hour" | "day" | "week" |
+    /// How many buckets are currently stored at `level` ("second" | "minute" | "hour" | "day" | "week" |
     /// "month" | "year", or a `BucketLevel`).
     fn bucket_count(&self, level: &Bound<'_, PyAny>) -> PyResult<usize> {
         let level = parse_level(level)?;

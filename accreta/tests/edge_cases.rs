@@ -2,7 +2,7 @@
 //!
 //! NOTE: These are written against the public surface shown in `lib.rs`'s doc comments
 //! (`Schema::builder`, `Engine::new/ingest/rollup/bucket`, `BucketLevel::truncate`,
-//! `aggregates::{Sum, Count, Min, Max, Average}`, `MeasureId`). A few calls (error variants,
+//! `aggregates::{Sum, Count, Min, Max}`, `MeasureId`). A few calls (error variants,
 //! `Retention` construction, `DimensionMask`) are inferred from the module map and may need
 //! small signature adjustments once wired against the real crate — the intent of each test
 //! should carry over regardless.
@@ -103,7 +103,8 @@ fn out_of_order_samples_still_aggregate_correctly() {
     let mut engine = Engine::new(schema_single_measure());
     let t0 = Utc.with_ymd_and_hms(2026, 3, 15, 10, 0, 0).unwrap();
 
-    // Ingest in reverse chronological order within the same minute-level rollup window.
+    // Ingest in reverse chronological order within the same minute (each sample lands in
+    // its own second bucket; the Minute bucket is rebuilt from them by rollup()).
     engine
         .ingest(t0 + Duration::seconds(40), [3.0], ["server-a"])
         .unwrap();
@@ -220,7 +221,7 @@ fn calling_rollup_twice_does_not_double_count() {
 }
 
 // ---------------------------------------------------------------------------
-// Derived aggregate (Average) built from Sum + Count
+// Derived average, computed from Sum + Count (there is no Average aggregate)
 // ---------------------------------------------------------------------------
 
 #[test]

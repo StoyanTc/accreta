@@ -16,9 +16,9 @@ use crate::bucket::BucketLevel;
 ///
 /// Every level keeps its buckets forever by default — an `Engine` with no retention configured
 /// behaves exactly as before this existed. Configuring only the finest levels is a common
-/// pattern: keep raw `Minute` resolution for a day or a week for detailed recent lookback, and
-/// let coarser rollups (`Day`, `Month`, `Year`, ...) accumulate indefinitely, since there are
-/// vastly fewer of them.
+/// pattern: keep raw `Second` resolution for an hour or a day (and `Minute` for a week) for
+/// detailed recent lookback, and let coarser rollups (`Day`, `Month`, `Year`, ...) accumulate
+/// indefinitely, since there are vastly fewer of them.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Retention {
     max_age: [Option<Duration>; BucketLevel::ALL.len()],
@@ -56,6 +56,7 @@ mod tests {
     #[test]
     fn unconfigured_levels_have_no_limit() {
         let retention = Retention::new();
+        assert_eq!(retention.max_age_for(BucketLevel::Second), None);
         assert_eq!(retention.max_age_for(BucketLevel::Minute), None);
     }
 
@@ -66,14 +67,20 @@ mod tests {
             retention.max_age_for(BucketLevel::Minute),
             Some(Duration::hours(24))
         );
+        assert_eq!(retention.max_age_for(BucketLevel::Second), None);
         assert_eq!(retention.max_age_for(BucketLevel::Hour), None);
     }
 
     #[test]
     fn keep_can_configure_multiple_levels_by_chaining() {
         let retention = Retention::new()
+            .keep(BucketLevel::Second, Duration::hours(1))
             .keep(BucketLevel::Minute, Duration::hours(24))
             .keep(BucketLevel::Hour, Duration::days(30));
+        assert_eq!(
+            retention.max_age_for(BucketLevel::Second),
+            Some(Duration::hours(1))
+        );
         assert_eq!(
             retention.max_age_for(BucketLevel::Minute),
             Some(Duration::hours(24))
