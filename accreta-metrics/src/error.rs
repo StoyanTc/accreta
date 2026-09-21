@@ -4,9 +4,9 @@
 //! status and serializes to the single JSON shape documented in the design summary:
 //! `{"error": "<code>", "detail": "<message>", "field": "<optional dotted path>"}`.
 
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde::Serialize;
 use utoipa::ToSchema;
 

@@ -76,9 +76,7 @@ impl BucketLevel {
     /// Weeks start on Monday (ISO 8601).
     pub fn truncate(self, dt: DateTime<Utc>) -> DateTime<Utc> {
         match self {
-            BucketLevel::Second => dt
-                .with_nanosecond(0)
-                .expect("valid truncation to second"),
+            BucketLevel::Second => dt.with_nanosecond(0).expect("valid truncation to second"),
             BucketLevel::Minute => dt
                 .with_second(0)
                 .and_then(|d| d.with_nanosecond(0))
@@ -375,10 +373,7 @@ mod tests {
 
     #[test]
     fn second_rolls_up_into_minute_only() {
-        assert_eq!(
-            BucketLevel::Second.rollup_targets(),
-            &[BucketLevel::Minute]
-        );
+        assert_eq!(BucketLevel::Second.rollup_targets(), &[BucketLevel::Minute]);
     }
 
     #[test]

@@ -7,13 +7,13 @@
 use std::sync::Arc;
 
 use argon2::{Argon2, PasswordVerifier};
+use axum::Json;
 use axum::extract::FromRequestParts;
 use axum::extract::State;
 use axum::http::header::AUTHORIZATION;
 use axum::http::request::Parts;
-use axum::Json;
 use chrono::{Duration, Utc};
-use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 

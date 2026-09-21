@@ -19,11 +19,11 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use accreta::AggregateSet;
 use accreta::bucket::BucketLevel;
 use accreta::measures::MeasureId;
-use accreta::AggregateSet;
-use axum::extract::State;
 use axum::Json;
+use axum::extract::State;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;

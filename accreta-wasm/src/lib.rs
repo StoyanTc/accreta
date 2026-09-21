@@ -242,9 +242,7 @@ impl Engine {
             }
         }
 
-        let schema = builder
-            .build()
-            .map_err(|e| JsError::new(&e.to_string()))?;
+        let schema = builder.build().map_err(|e| JsError::new(&e.to_string()))?;
         let retention = build_retention(&spec.retention)?;
         let inner = accreta::Engine::with_retention(schema, retention);
 
