@@ -497,12 +497,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         for _ in 0..events {
             samples.push(generator.sample());
             if samples.len() >= cfg.batch_size {
-                sent += ingest(&cfg, &token, &samples).await?;
+                match ingest(&cfg, &token, &samples).await {
+                    Ok(injected) => {
+                        sent += injected;
+                    }
+                    Err(_) => {
+                        let token = login(&cfg).await?;
+                        sent += ingest(&cfg, &token, &samples).await?;
+                    }
+                }
                 samples.clear();
             }
         }
         if !samples.is_empty() {
-            sent += ingest(&cfg, &token, &samples).await?;
+            match ingest(&cfg, &token, &samples).await {
+                Ok(injected) => {
+                    sent += injected;
+                }
+                Err(_) => {
+                    let token = login(&cfg).await?;
+                    sent += ingest(&cfg, &token, &samples).await?;
+                }
+            }
         }
         total += sent;
 

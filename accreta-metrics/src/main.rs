@@ -12,6 +12,7 @@ mod state;
 use std::sync::Arc;
 
 use argon2::{Argon2, PasswordHasher};
+use axum::http::{HeaderValue, Method, header};
 use axum::routing::post;
 use axum::{Router, routing::get};
 use dashmap::DashMap;
@@ -66,6 +67,11 @@ async fn main() {
 
     rollup::spawn(state.clone());
 
+    let cors = CorsLayer::new()
+        .allow_origin("http://localhost:5173".parse::<HeaderValue>().unwrap())
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
+
     let app = Router::new()
         .route("/health", get(health::health))
         .route("/login", post(auth::login))
@@ -79,7 +85,7 @@ async fn main() {
             SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", openapi::ApiDoc::openapi()),
         )
         .layer(TraceLayer::new_for_http())
-        .layer(CorsLayer::permissive())
+        .layer(cors)
         .with_state(state);
 
     let addr = std::env::var("ACCRETA_METRICS_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".to_string());
