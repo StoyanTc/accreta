@@ -78,23 +78,6 @@ pub struct QueryResponse {
     pub buckets: Vec<BucketResult>,
 }
 
-fn parse_level(s: &str) -> Result<BucketLevel, ApiError> {
-    match s {
-        "second" => Ok(BucketLevel::Second),
-        "minute" => Ok(BucketLevel::Minute),
-        "hour" => Ok(BucketLevel::Hour),
-        "day" => Ok(BucketLevel::Day),
-        "week" => Ok(BucketLevel::Week),
-        "month" => Ok(BucketLevel::Month),
-        "year" => Ok(BucketLevel::Year),
-        other => Err(ApiError::validation(
-            "invalid_level",
-            format!("unknown level '{other}'"),
-            "level",
-        )),
-    }
-}
-
 fn parse_ts(s: &str, field: &str) -> Result<DateTime<Utc>, ApiError> {
     DateTime::parse_from_rfc3339(s)
         .map(|dt| dt.with_timezone(&Utc))
@@ -125,7 +108,7 @@ fn plan_query(
     meta: &SchemaMeta,
     dim_dicts: &[crate::state::DimDict],
 ) -> Result<Plan, ApiError> {
-    let level = parse_level(&req.level)?;
+    let level = dispatch::parse_level(&req.level, "level")?;
     let range_start = parse_ts(&req.time_range.start, "time_range.start")?;
     let range_end = parse_ts(&req.time_range.end, "time_range.end")?;
     if range_start > range_end {

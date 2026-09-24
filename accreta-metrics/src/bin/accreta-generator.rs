@@ -417,7 +417,8 @@ async fn create_schema(cfg: &Config, token: &str) -> Result<(), Box<dyn std::err
             {"name": "request_count", "value_type": "u64", "aggregates": ["sum", "count"]},
             {"name": "latency_ms", "value_type": "f64", "aggregates": ["sum", "count", "min", "max", "tdigest"]},
             {"name": "error_count", "value_type": "u64", "aggregates": ["sum", "count"]}
-        ]
+        ],
+        "retention": {"second": 1200, "minute": 72000, "hour": 172800, "day": 5256000}
     });
     let body = serde_json::to_string(&body)?;
     let response = request(

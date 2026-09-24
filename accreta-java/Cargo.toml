@@ -11,6 +11,6 @@ name = "accreta_java"
 crate-type = ["cdylib"]
 
 [dependencies]
-accreta = { path = "../accreta", version = "0.3.0" }
+accreta = { workspace = true }
 jni = "0.21"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }

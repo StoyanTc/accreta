@@ -1,10 +1,13 @@
 //! `POST /schema` (create, one-shot) and `GET /schema` (introspect).
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use accreta::engine::Engine;
+use accreta::retention::Retention;
 use axum::Json;
 use axum::extract::State;
+use chrono::Duration;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -25,6 +28,14 @@ pub struct SchemaRequest {
     pub name: String,
     pub dimensions: Vec<String>,
     pub measures: Vec<MeasureRequest>,
+    /// Optional per-level retention, keyed by level name (`"second"`, `"minute"`, `"hour"`,
+    /// `"day"`, `"week"`, `"month"`, `"year"`) with a max-age value in seconds. A level not
+    /// present here is kept forever (`accreta`'s default) — this is the only way to configure
+    /// retention in v1; there's no endpoint to change it after schema creation. Safe to set on
+    /// any level: `accreta`'s incremental rollup means a pruned bucket's contribution is already
+    /// durably folded into its parent before it's discarded.
+    #[serde(default)]
+    pub retention: HashMap<String, u64>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -39,12 +50,15 @@ pub struct SchemaResponse {
     pub name: String,
     pub dimensions: Vec<String>,
     pub measures: Vec<MeasureResponse>,
+    /// Echoes back whatever was configured in the request's `retention` field, if anything.
+    pub retention: HashMap<String, u64>,
 }
 
 /// Validate the whole request shape: unknown/duplicate aggregates and tdigest-on-non-f64 (via
-/// [`dispatch::validate_measure_aggregates`]), plus duplicate dimension/measure names across the
-/// schema as a whole. Returns nothing on success — `accreta::Schema::builder()` is only ever
-/// called with input that has already passed every check here, so it can never panic.
+/// [`dispatch::validate_measure_aggregates`]), duplicate dimension/measure names across the
+/// schema as a whole, and the `retention` map's level names and values. Returns nothing on
+/// success — `accreta::Schema::builder()` and `accreta::Retention` are only ever called with
+/// input that has already passed every check here, so neither can panic or reject it.
 fn validate_schema_request(req: &SchemaRequest) -> Result<(), ApiError> {
     if req.dimensions.is_empty() {
         return Err(ApiError::validation(
@@ -84,6 +98,17 @@ fn validate_schema_request(req: &SchemaRequest) -> Result<(), ApiError> {
         )?;
     }
 
+    for (level_str, seconds) in &req.retention {
+        dispatch::parse_level(level_str, format!("retention.{level_str}"))?;
+        if *seconds == 0 {
+            return Err(ApiError::validation(
+                "invalid_retention",
+                "retention max_age_seconds must be greater than 0",
+                format!("retention.{level_str}"),
+            ));
+        }
+    }
+
     Ok(())
 }
 
@@ -111,13 +136,24 @@ fn build_engine_state(req: SchemaRequest) -> EngineState {
         .build()
         .expect("schema request was already validated to have >=1 dimension and >=1 measure");
 
+    // Retention level names were already validated in validate_schema_request, so parse_level
+    // here can't fail — accreta's incremental rollup (see accreta's engine.rs docs) means this is
+    // safe for any level, not just leaf levels like Week/Year.
+    let mut retention = Retention::new();
+    for (level_str, seconds) in &req.retention {
+        let level = dispatch::parse_level(level_str, "retention")
+            .expect("retention keys were validated before build_engine_state was called");
+        retention = retention.keep(level, Duration::seconds(*seconds as i64));
+    }
+
     let meta = SchemaMeta {
         name: req.name,
         dimensions: req.dimensions,
         measures: measure_meta,
+        retention: req.retention,
     };
 
-    EngineState::new(Engine::new(schema), meta)
+    EngineState::new(Engine::with_retention(schema, retention), meta)
 }
 
 #[utoipa::path(
@@ -199,5 +235,6 @@ fn schema_response(meta: &SchemaMeta) -> SchemaResponse {
                 aggregates: m.aggregates.clone(),
             })
             .collect(),
+        retention: meta.retention.clone(),
     }
 }

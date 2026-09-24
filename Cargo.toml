@@ -9,3 +9,6 @@ members = [
     "accreta-wasm",
     "accreta-metrics",
 ]
+
+[workspace.dependencies]
+accreta = { path = "accreta", version = "0.4.0" }

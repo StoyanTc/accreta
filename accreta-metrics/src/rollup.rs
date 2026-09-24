@@ -2,13 +2,16 @@
 //!
 //! Not triggered inline by request handlers (see design summary) — ingest only ever touches
 //! `BucketLevel::Second`; this task is what propagates that up through the hierarchy and (once a
-//! retention policy is configured) prunes old buckets.
+//! retention policy is configured, see `schema_api.rs`'s `retention` field) prunes old buckets.
 //!
-//! `rollup()` rebuilds every level above `Second` from the level below on each sweep, and the
-//! sweep prunes *after* rolling up. That order is what keeps coarser levels complete: if a
-//! retention policy pruning `Second` (or `Minute`, ...) is ever configured, the next sweep's
-//! rollup would recompute the levels above it from only the surviving buckets. Make rollup
-//! incremental before adding one.
+//! `accreta::Engine::rollup()` is incremental: each sweep only recomputes the coarser buckets
+//! whose children actually changed since the last sweep, not every bucket at every level. That
+//! also means pruning is safe on any level here, not just leaf levels (`Week`/`Year`) — a bucket's
+//! contribution is durably folded into its parent by the time it's pruned, so a later sweep never
+//! needs to recompute a coarser level from "whichever children happen to still be around". Keep
+//! calling `rollup()` before `prune()` on each sweep regardless (as below): `accreta::Engine`
+//! still refuses to discard a bucket that hasn't been rolled up yet as a backstop, but that's not
+//! a substitute for the right order.
 
 use std::sync::Arc;
 use std::sync::atomic::Ordering;

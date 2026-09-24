@@ -16,7 +16,7 @@ pub struct ErrorBody {
     pub error: String,
     /// Human-readable detail.
     pub detail: String,
-    /// Optional dotted path to the offending field, e.g. "measures[1].aggregates".
+    /// Optional dotted path to the offending field, e.g. "measures\[1\].aggregates".
     #[serde(skip_serializing_if = "Option::is_none")]
     pub field: Option<String>,
 }

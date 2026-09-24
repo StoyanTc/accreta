@@ -18,6 +18,7 @@
 
 use accreta::aggregate_set::{MeasureBuilder, SchemaBuilder};
 use accreta::aggregates::{Count, Max, Min, Sum, TDigest};
+use accreta::bucket::BucketLevel;
 use accreta::measures::MeasureType;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -60,6 +61,29 @@ impl std::fmt::Display for ValueType {
 /// `accreta::aggregates::*::NAME` constant. Kept as one list so "unknown aggregate" validation
 /// and the two dispatch tables below can never silently drift apart.
 pub const KNOWN_AGGREGATES: &[&str] = &["sum", "count", "min", "max", "tdigest"];
+
+/// Parse a bucket-level string (`"second"`, `"minute"`, ...) into `accreta::BucketLevel`.
+///
+/// Shared by `POST /schema/query`'s `level` field and `POST /schema`'s `retention` keys, so the
+/// two can never silently accept different sets of level names. `field` is the dotted path to
+/// use in the error envelope if `s` isn't a recognized level (e.g. `"level"` or
+/// `"retention.foo"`).
+pub fn parse_level(s: &str, field: impl Into<String>) -> Result<BucketLevel, ApiError> {
+    match s {
+        "second" => Ok(BucketLevel::Second),
+        "minute" => Ok(BucketLevel::Minute),
+        "hour" => Ok(BucketLevel::Hour),
+        "day" => Ok(BucketLevel::Day),
+        "week" => Ok(BucketLevel::Week),
+        "month" => Ok(BucketLevel::Month),
+        "year" => Ok(BucketLevel::Year),
+        other => Err(ApiError::validation(
+            "invalid_level",
+            format!("unknown level '{other}'"),
+            field,
+        )),
+    }
+}
 
 /// Leak an owned `String` into a `&'static str`.
 ///

@@ -120,6 +120,36 @@ impl BucketLevel {
         self.truncate(child_start)
     }
 
+    /// The (exclusive) end of the bucket at this level that starts at `start`.
+    ///
+    /// `start` must already be truncated to this level (e.g. via [`Self::truncate`]) — this is
+    /// the same computation [`Bucket::end`] exposes for an existing bucket, factored out here so
+    /// [`crate::engine::Engine::rollup`] can compute a *prospective* parent bucket's time span
+    /// (to select its children) without constructing the bucket first.
+    pub fn bucket_end(self, start: DateTime<Utc>) -> DateTime<Utc> {
+        match self {
+            BucketLevel::Second => start + Duration::seconds(1),
+            BucketLevel::Minute => start + Duration::minutes(1),
+            BucketLevel::Hour => start + Duration::hours(1),
+            BucketLevel::Day => start + Duration::days(1),
+            BucketLevel::Week => start + Duration::weeks(1),
+            BucketLevel::Month => {
+                let (y, m) = if start.month() == 12 {
+                    (start.year() + 1, 1)
+                } else {
+                    (start.year(), start.month() + 1)
+                };
+                Utc.with_ymd_and_hms(y, m, 1, 0, 0, 0)
+                    .single()
+                    .expect("valid month end")
+            }
+            BucketLevel::Year => Utc
+                .with_ymd_and_hms(start.year() + 1, 1, 1, 0, 0, 0)
+                .single()
+                .expect("valid year end"),
+        }
+    }
+
     /// A reasonable upper-bound duration for one bucket at this level, used only for display /
     /// sanity-checking purposes (months and years are not fixed-length, so this is approximate
     /// for those two).
@@ -191,27 +221,7 @@ impl Bucket {
     /// The (exclusive) end of this bucket's time window, derived from
     /// [`Self::start`] and [`Self::level`].
     pub fn end(&self) -> DateTime<Utc> {
-        match self.level {
-            BucketLevel::Second => self.start + Duration::seconds(1),
-            BucketLevel::Minute => self.start + Duration::minutes(1),
-            BucketLevel::Hour => self.start + Duration::hours(1),
-            BucketLevel::Day => self.start + Duration::days(1),
-            BucketLevel::Week => self.start + Duration::weeks(1),
-            BucketLevel::Month => {
-                let (y, m) = if self.start.month() == 12 {
-                    (self.start.year() + 1, 1)
-                } else {
-                    (self.start.year(), self.start.month() + 1)
-                };
-                Utc.with_ymd_and_hms(y, m, 1, 0, 0, 0)
-                    .single()
-                    .expect("valid month end")
-            }
-            BucketLevel::Year => Utc
-                .with_ymd_and_hms(self.start.year() + 1, 1, 1, 0, 0, 0)
-                .single()
-                .expect("valid year end"),
-        }
+        self.level.bucket_end(self.start)
     }
 
     /// Read-only access to all dimension groups in this bucket.
@@ -362,6 +372,15 @@ mod tests {
             bucket.end(),
             Utc.with_ymd_and_hms(2027, 1, 1, 0, 0, 0).unwrap()
         );
+    }
+
+    #[test]
+    fn bucket_end_agrees_with_level_bucket_end() {
+        // Bucket::end() is now a thin wrapper over BucketLevel::bucket_end() — pin that down
+        // explicitly so the two can never silently drift apart again.
+        let start = Utc.with_ymd_and_hms(2026, 6, 30, 23, 0, 0).unwrap();
+        let bucket = Bucket::new(BucketLevel::Day, start);
+        assert_eq!(bucket.end(), BucketLevel::Day.bucket_end(start));
     }
 
     #[test]

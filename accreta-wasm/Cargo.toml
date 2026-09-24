@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # Adjust the path to wherever accreta core lives inside the workspace.
-accreta = { path = "../accreta", version = "0.3.0" }
+accreta = { workspace = true }
 
 wasm-bindgen = "0.2"
 serde = { version = "1", features = ["derive"] }

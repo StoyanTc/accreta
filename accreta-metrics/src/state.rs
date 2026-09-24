@@ -23,6 +23,11 @@
 //! which gives it both directions (`resolve` for building query responses, and `value -> id` for
 //! implementing the `filter` clause by hand over `Engine::buckets`/`Bucket::groups` — see
 //! `query_api.rs`).
+//!
+//! `SchemaMeta::retention` exists for the same reason: `accreta::Retention::max_age_for` is
+//! crate-private, so once a retention policy is handed to `Engine::with_retention` there's no way
+//! to read it back from `accreta` itself. This service tracks what it configured (level name ->
+//! max age in seconds) so `GET /schema` can echo it.
 
 use std::sync::Arc;
 use std::{collections::HashMap, sync::atomic::AtomicI64};
@@ -84,6 +89,11 @@ pub struct SchemaMeta {
     pub dimensions: Vec<String>,
     /// Declaration order == `MeasureId` order.
     pub measures: Vec<MeasureMeta>,
+    /// Level name -> configured max age in seconds. Only levels actually configured at schema
+    /// creation appear here — everything else stays unbounded (`accreta::Retention`'s default).
+    /// See the module docs for why this has to be tracked here rather than read back from
+    /// `accreta::Retention` itself.
+    pub retention: HashMap<String, u64>,
 }
 
 /// Everything that exists once a tenant has called `POST /schema`: the live `accreta::Engine`,

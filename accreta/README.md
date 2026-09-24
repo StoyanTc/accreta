@@ -34,11 +34,16 @@ Raw samples are only ever folded into the finest (`Second`) buckets. Every coars
 derived *exclusively* by merging finer buckets — the engine never reprocesses raw data to
 compute a rollup, and `rollup()` is idempotent to call as often as you like.
 
+`rollup()` is also **incremental**: it only recomputes the specific coarser buckets whose
+children actually changed since the last call (new samples ingested, or a previously-rolled-up
+child updated by late data), not every bucket at every level. Calling it repeatedly with nothing
+new in between is a cheap no-op.
+
 ## Installation
 
 ```toml
 [dependencies]
-accreta = "0.3"
+accreta = "0.4"
 ```
 
 ## Quick start
@@ -71,8 +76,8 @@ engine
     .ingest(t0 + Duration::seconds(1), vec![8.0], vec!["Firefox"])
     .unwrap();
 
-// 3. Roll up whenever you want coarser buckets. Cheap — it only merges
-//    what's already there, it never re-reads your samples.
+// 3. Roll up whenever you want coarser buckets. Cheap — it only recomputes
+//    the specific buckets that changed, and never re-reads your samples.
 engine.rollup();
 
 // 4. Read back at whatever granularity you need.
@@ -109,6 +114,9 @@ ad-hoc queries and retention.
   set of levels, but the rollup path between them fans out rather than chaining straight
   through: `day` feeds both `week` and `month` directly, `week` never rolls up any further, and
   `month` feeds `year`. See `BucketLevel::rollup_targets` for the exact fan-out at each level.
+- **Incremental rollups** — `rollup()` tracks which buckets changed since it was last called and
+  only recomputes the coarser buckets those affect, so ingesting a steady stream of `Second`-level
+  data doesn't mean re-merging the whole bucket hierarchy on every sweep.
 - **Pluggable aggregates** — `Sum`, `Count`, `Min`, `Max`, and `TDigest` ship built
   in; you can add your own (e.g. running variance) without changing anything in the engine — see
   [Adding a custom aggregate](#adding-a-custom-aggregate) below.
@@ -122,7 +130,8 @@ ad-hoc queries and retention.
 - **Type-safe measures** — `i64`, `u64`, and `f64` measure values are checked against the schema
   when you ingest them.
 - **Bounded memory** — an optional `Retention` policy plus an explicit `prune()` step for
-  long-running ingestion; rollups themselves never delete anything.
+  long-running ingestion, safe to configure on any level; rollups themselves never delete
+  anything.
 - **No hot-path allocation** — folding a sample into an existing bucket allocates nothing.
 
 ## Adding a custom aggregate
@@ -202,9 +211,14 @@ time, so this behaves the same way for live ingestion and for replaying historic
 with no configured limit are left untouched. `rollup()` never deletes anything — `prune()` is
 the only place data leaves the engine.
 
-Because `rollup()` rebuilds every level above `Second` from the level below it, always call
-`prune()` *after* `rollup()`, never before a subsequent `rollup()`: pruning `Second` buckets and
-then rolling up again would recompute the coarser levels from only the surviving seconds.
+Because `rollup()` is incremental, it's now safe to configure retention on **any** level,
+including `Second`, `Minute`, `Hour`, `Day`, or `Month` — levels that feed a coarser rollup. A
+pruned bucket's contribution was already durably folded into its parent by the time it was
+pruned; nothing above it is ever recomputed from "whichever children happen to still exist", the
+way a from-scratch rebuild would. Always call `prune()` *after* `rollup()`, as in the example
+above — `prune()` also refuses to discard a bucket that hasn't been rolled up yet, as a backstop
+if the two are ever called out of order, but that backstop only delays the prune by one cycle
+rather than making the wrong order a good idea.
 
 ## Module map
 
@@ -220,7 +234,7 @@ then rolling up again would recompute the coarser levels from only the surviving
 | `measures` | `MeasureId`, `MeasureType`, `MeasureValue`, and the `MeasureNumber`/`FromValue` traits |
 | `bucket` | `BucketLevel` + `Bucket`: a time window holding an `AggregateSet` per dimension group |
 | `retention` | `Retention`: how long buckets are kept at each level |
-| `engine` | `Engine`: owns the bucket hierarchy, drives ingestion, rollup, and pruning |
+| `engine` | `Engine`: owns the bucket hierarchy, drives ingestion, incremental rollup, and pruning |
 
 ## Examples
 

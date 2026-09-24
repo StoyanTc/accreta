@@ -159,7 +159,9 @@ The generator creates the following demo schema:
 `latency_ms` includes endpoint/region-specific variation and bounded noise.
 The synthetic workload also varies traffic and error rates so that the
 dashboard can demonstrate grouping, filtering, rollups, and percentile
-queries.
+queries. It does not configure retention, so the demo schema keeps every
+bucket forever — see [Configuring retention](#configuring-retention) below to
+try it out against your own schema.
 
 ### Scenarios
 
@@ -214,7 +216,9 @@ TOKEN=$(curl -s -X POST http://localhost:8080/login \
   -H 'content-type: application/json' \
   -d '{"username":"demo","password":"demo123"}' | jq -r .token)
 
-# 2. Create a schema (one-shot — a second call 409s)
+# 2. Create a schema (one-shot — a second call 409s). "retention" is optional; see
+#    "Configuring retention" below for what it does — omit it entirely to keep every bucket
+#    forever, as before.
 curl -s -X POST http://localhost:8080/schema \
   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d '{
     "name": "web_requests",
@@ -222,7 +226,8 @@ curl -s -X POST http://localhost:8080/schema \
     "measures": [
       {"name": "latency_ms", "value_type": "f64", "aggregates": ["sum", "count", "tdigest"]},
       {"name": "request_count", "value_type": "i64", "aggregates": ["sum", "count"]}
-    ]
+    ],
+    "retention": {"second": 3600, "minute": 604800}
   }'
 
 # 3. Ingest a batch of samples
@@ -264,6 +269,43 @@ curl -s -X POST http://localhost:8080/schema/query \
 Or skip the `curl` and just open `http://localhost:8080/swagger-ui` — log in via `POST /login`
 in the UI, hit "Authorize" with the returned token, and drive the same sequence from "Try it out".
 
+## Configuring retention
+
+`POST /schema` accepts an optional `retention` object, keyed by level name (`second`, `minute`,
+`hour`, `day`, `week`, `month`, `year`) with a max-age value in whole seconds:
+
+```json
+{
+  "name": "web_requests",
+  "dimensions": ["host", "region"],
+  "measures": [ /* ... */ ],
+  "retention": {
+    "second": 3600,
+    "minute": 604800
+  }
+}
+```
+
+This example keeps `second`-level buckets for one hour and `minute`-level buckets for a week,
+past the newest bucket currently stored at each of those levels — not wall-clock time, so replaying
+historical data behaves the same way live ingestion does. A level omitted from `retention` is kept
+forever, same as today. `GET /schema` echoes back whatever was configured. There's no endpoint to
+change it after schema creation in v1 — like everything else about the schema, it's set once at
+`POST /schema` time.
+
+Retention is safe to configure on **any** level, including `second`, `minute`, `hour`, `day`, or
+`month` — levels that feed a coarser rollup (`day` feeds both `week` and `month`; only `week` and
+`year` feed nothing further). `accreta`'s background rollup is incremental: a bucket's contribution
+is durably folded into its parent as soon as it's rolled up, so pruning it afterward never causes a
+later sweep to recompute a coarser level from only whichever finer buckets happen to still exist.
+The background sweep here always calls `rollup()` before `prune()` (see `rollup.rs`), which is what
+makes this safe in practice.
+
+Configuring `second`-level retention is the most common reason to reach for this at all: per the
+"Defaults and gotchas" note below, `second` buckets are the most numerous by a wide margin, so
+bounding how long they're kept is usually the first lever worth pulling if memory use from a
+long-running deployment becomes a concern.
+
 ## Defaults and gotchas
 
 Behavior that's correct but easy to get tripped up by, since none of it is obvious from the
@@ -273,18 +315,19 @@ endpoint shapes alone:
   until the background rollup sweep has run.** `Engine::ingest` only ever writes `second`
   buckets; `minute`/`hour`/`day`/`week`/`month`/`year` are only populated when `Engine::rollup()` runs,
   which happens on `rollup.rs`'s background timer (default every 30s,
-  `ACCRETA_METRICS_ROLLUP_INTERVAL_SECS` to change it) — not inline on ingest. One sweep tick
-  fully cascades second all the way up to year, so it's a one-time wait, not a per-level one. If
-  a query comes back empty, try `"level": "second"` first to confirm the data's actually there
-  before assuming something's wrong.
+  `ACCRETA_METRICS_ROLLUP_INTERVAL_SECS` to change it) — not inline on ingest. Each sweep tick
+  fully cascades whatever changed at `second` all the way up to `year`, so it's a one-time wait
+  after ingestion starts, not a per-level one. If a query comes back empty, try `"level": "second"`
+  first to confirm the data's actually there before assuming something's wrong.
 - **`second` is the finest level and the only one written on ingest, so it is also the most
   numerous.** Every distinct ingest timestamp (truncated to the second) gets its own bucket
-  holding one aggregate state per dimension combination seen in that second, so memory and
-  each sweep's rollup cost grow much faster than they did with `minute` as the base level —
-  `tdigest` measures especially. `rollup()` also rebuilds every level above `second` from the
-  level below on each sweep, so a retention policy that prunes `second` buckets would make
-  later sweeps recompute `minute` and above from only the surviving seconds. This service
-  configures no retention, which avoids that; don't add one until rollup is incremental.
+  holding one aggregate state per dimension combination seen in that second, so memory grows
+  faster than it did with `minute` as the base level — `tdigest` measures especially. `accreta`'s
+  rollup is incremental (it only reprocesses buckets that actually changed, not the whole
+  hierarchy on every sweep), so cost no longer scales with total bucket count the way a
+  from-scratch rebuild would — but bucket *count itself* is still unbounded unless you configure
+  retention on `second` (see [Configuring retention](#configuring-retention) above), which is the
+  main reason that field exists.
 - **`{"buckets":[]}` and `404 {"error":"no_schema"}` mean different things** — empty buckets means
   the schema exists but nothing (yet) matches the query (often the rollup-timing case above);
   `no_schema` means `POST /schema` was never called for this tenant at all.
@@ -326,11 +369,18 @@ endpoint shapes alone:
 - Given two runtime-only surprises have now turned up in dependencies that couldn't be compiled in
   this sandbox (`argon2`/`jsonwebtoken`), **please run the full `curl` walkthrough above once**
   after `cargo build` succeeds, rather than assuming a clean build means the auth path works too.
+- **The `retention` field on `POST /schema` (`dispatch.rs`, `schema_api.rs`, `state.rs`) and
+  `accreta`'s incremental `rollup()`/backstop `prune()` it depends on have not yet been compiled or
+  run anywhere** — they were written against the `accreta` source as shared, not against a
+  buildable checkout. Bump the `accreta` dependency to the version carrying the incremental-rollup
+  change before relying on this, and re-run the `curl` walkthrough (steps 2 and 5 above exercise
+  `retention` and the rollup timing it depends on) before treating it as verified.
 
 ## Notable implementation decisions not spelled out in the design summary
 
 - `accreta::Schema` never exposes dimension names, only `dimension_count()` — this service tracks
-  them itself (`state::SchemaMeta`).
+  them itself (`state::SchemaMeta`). The same gap exists for retention (`accreta::Retention` never
+  exposes back what was configured), tracked the same way in `SchemaMeta::retention`.
 - `accreta::Engine` has no public way to resolve an interned dimension value back to its string,
   and `Engine::query_range_grouped` has no equality-filter parameter at all and only covers one
   measure per call. This service keeps its own shadow dictionaries in lockstep with every
@@ -343,6 +393,9 @@ endpoint shapes alone:
 - Schema/measure/dimension names arriving as JSON `String`s are `Box::leak`'d into `&'static str`
   once, at schema-creation time, to satisfy `accreta::SchemaBuilder`'s API — sound here because v1
   schema creation is one-shot per process (`POST /schema` 409s on a second call).
+- `dispatch::parse_level` is the single source of truth for bucket-level name strings, shared by
+  `POST /schema/query`'s `level` field and `POST /schema`'s `retention` keys, so the two endpoints
+  can never silently diverge on which level names are valid.
 
 ## Still open (per the design summary, not addressed here)
 

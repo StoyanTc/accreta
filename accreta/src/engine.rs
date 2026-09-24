@@ -1,6 +1,6 @@
 //! [`Engine`]: manages the in-memory bucket hierarchy and drives rollups.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use chrono::{DateTime, Utc};
 
@@ -34,6 +34,12 @@ pub struct Engine {
     dictionaries: DimensionDictionaries,
     buckets: BTreeMap<BucketLevel, BTreeMap<DateTime<Utc>, Bucket>>,
     retention: Retention,
+    /// Child bucket starts, per level, created or updated since that level was last consumed as
+    /// a rollup source. Drives incremental [`Engine::rollup`]: only the parent buckets these
+    /// could affect get recomputed, not every parent bucket at that level. Always fully drained
+    /// by a completed `rollup()` call — see that method's docs for why [`Engine::prune`] depends
+    /// on that invariant.
+    dirty: HashMap<BucketLevel, BTreeSet<DateTime<Utc>>>,
 }
 
 impl Engine {
@@ -58,6 +64,7 @@ impl Engine {
             dictionaries,
             buckets,
             retention,
+            dirty: HashMap::new(),
         }
     }
 
@@ -173,6 +180,11 @@ impl Engine {
             .or_insert_with(|| Bucket::new(BucketLevel::Second, start))
             .update(&sample, &schema);
 
+        self.dirty
+            .entry(BucketLevel::Second)
+            .or_default()
+            .insert(start);
+
         Ok(())
     }
 
@@ -192,36 +204,64 @@ impl Engine {
         Ok(())
     }
 
-    /// Recompute every level above [`BucketLevel::Second`] by merging bucket states upward.
+    /// Recompute every coarser bucket affected by data that changed since the last call.
     ///
-    /// Each level's buckets are rebuilt from scratch from the level directly below it (which may
-    /// itself have just been rebuilt earlier in the same call), so calling `rollup` repeatedly is
-    /// safe and idempotent — it never double-counts a sample, because it never touches samples at
-    /// all, only merges the current [`Bucket`] states.
+    /// This is incremental, not a full rebuild: only the parent buckets whose children actually
+    /// changed — new samples ingested, or a previously-rolled-up child updated by late or
+    /// out-of-order data — get reprocessed. A bucket at a coarser level whose children haven't
+    /// changed since the last `rollup()` call is left completely untouched.
     ///
-    /// Because levels above `Second` are rebuilt rather than updated, pruning the `Second` level
-    /// (see [`Engine::prune`]) and then calling `rollup` again recomputes the coarser levels from
-    /// only the surviving seconds. Call `prune` *after* `rollup`, not before.
+    /// Each affected parent is still fully recomputed from its *current* complete set of children
+    /// at the level below it (never a delta merged into the old parent state). That's what keeps
+    /// this correct without needing an inverse operation for aggregates like `Min`/`Max` that
+    /// don't have one — recomputing from scratch is always correct, it's just now scoped to the
+    /// handful of buckets that could actually have changed, rather than every bucket at every
+    /// coarser level on every call. Calling `rollup()` repeatedly with nothing newly dirty in
+    /// between is a cheap no-op, not a repeated full rebuild.
+    ///
+    /// A change still cascades all the way from `Second` up through `Year` in one call: levels
+    /// are processed in [`BucketLevel::ALL`] order, and a level's affected parents are marked
+    /// dirty for the level above before moving on, so they're picked up within the same call. In
+    /// particular, this method always leaves `self.dirty` fully empty when it returns — see
+    /// [`Engine::prune`], which depends on that.
     pub fn rollup(&mut self) {
         for level in BucketLevel::ALL {
-            for parent_level in level.rollup_targets() {
-                let children = &self.buckets[&level];
-                let mut parents: BTreeMap<DateTime<Utc>, Bucket> = BTreeMap::new();
+            let Some(dirty_children) = self.dirty.remove(&level) else {
+                continue;
+            };
+            if dirty_children.is_empty() {
+                continue;
+            }
 
-                for child in children.values() {
-                    let parent_start = parent_level.truncate(child.start());
-
-                    parents
-                        .entry(parent_start)
-                        .and_modify(|parent| parent.merge(child))
-                        .or_insert_with(|| {
-                            let mut parent = Bucket::new(*parent_level, parent_start);
-                            parent.merge(child);
-                            parent
-                        });
+            for &parent_level in level.rollup_targets() {
+                let mut affected_parents: BTreeSet<DateTime<Utc>> = BTreeSet::new();
+                for &child_start in &dirty_children {
+                    affected_parents.insert(parent_level.truncate(child_start));
                 }
 
-                self.buckets.insert(*parent_level, parents);
+                let children = &self.buckets[&level];
+                let mut rebuilt = Vec::with_capacity(affected_parents.len());
+                for &parent_start in &affected_parents {
+                    let parent_end = parent_level.bucket_end(parent_start);
+                    let mut parent = Bucket::new(parent_level, parent_start);
+                    for child in children.range(parent_start..parent_end).map(|(_, b)| b) {
+                        parent.merge(child);
+                    }
+                    rebuilt.push((parent_start, parent));
+                }
+
+                let parent_buckets = self
+                    .buckets
+                    .get_mut(&parent_level)
+                    .expect("every level is always present");
+                for (start, bucket) in rebuilt {
+                    parent_buckets.insert(start, bucket);
+                }
+
+                self.dirty
+                    .entry(parent_level)
+                    .or_default()
+                    .extend(affected_parents);
             }
         }
     }
@@ -332,6 +372,14 @@ impl Engine {
     /// merge state (never deleting anything), which is the crate's core invariant, while `prune`
     /// is the one place data actually leaves the engine. Call it explicitly on whatever schedule
     /// suits your workload — typically right after `rollup`.
+    ///
+    /// A bucket that hasn't been rolled up into its parent yet is never discarded, even if it's
+    /// past its retention cutoff — pruning it before [`Engine::rollup`] has folded it upward
+    /// would permanently lose its contribution to every coarser level, since `rollup()` can only
+    /// ever see what's still present in this engine's bucket storage. Calling `rollup()` before
+    /// `prune()`, as documented above, means this case does not normally arise — a completed
+    /// `rollup()` call always leaves nothing dirty — so this is a backstop for out-of-order calls,
+    /// not a substitute for calling `rollup()` first.
     pub fn prune(&mut self) {
         for level in BucketLevel::ALL {
             let Some(max_age) = self.retention.max_age_for(level) else {
@@ -341,10 +389,141 @@ impl Engine {
                 continue;
             };
             let cutoff = latest_end - max_age;
+
+            let dirty_at_level = self.dirty.get(&level);
+            let has_pending_rollup =
+                |start: &DateTime<Utc>| dirty_at_level.is_some_and(|d| d.contains(start));
+
             self.buckets
                 .get_mut(&level)
                 .expect("every level is always present")
-                .retain(|_, bucket| bucket.end() > cutoff);
+                .retain(|start, bucket| bucket.end() > cutoff || has_pending_rollup(start));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::aggregate_set::Schema;
+    use crate::aggregates::{Count, Sum};
+    use chrono::{Duration as ChronoDuration, TimeZone};
+
+    fn schema() -> Schema {
+        let mut builder = Schema::builder();
+        builder
+            .dimension("host")
+            .measure("value")
+            .with::<Sum<f64>>()
+            .with_any::<Count>();
+        builder.build().unwrap()
+    }
+
+    #[test]
+    fn rollup_is_a_noop_with_nothing_dirty() {
+        let mut engine = Engine::new(schema());
+        let t0 = Utc.with_ymd_and_hms(2026, 3, 15, 10, 5, 0).unwrap();
+        engine.ingest(t0, [1.0], ["a"]).unwrap();
+        engine.rollup();
+        engine.rollup(); // nothing new since the first call
+
+        let minute_start = BucketLevel::Minute.truncate(t0);
+        let (_, sets) = engine
+            .bucket(BucketLevel::Minute, minute_start)
+            .unwrap()
+            .groups()
+            .next()
+            .unwrap();
+        assert_eq!(sets[0].get::<Sum<f64>>().unwrap().value(), 1.0);
+    }
+
+    #[test]
+    fn late_update_to_an_already_rolled_up_second_still_propagates() {
+        let mut engine = Engine::new(schema());
+        let t0 = Utc.with_ymd_and_hms(2026, 3, 15, 10, 5, 0).unwrap();
+        engine.ingest(t0, [1.0], ["a"]).unwrap();
+        engine.rollup();
+
+        // Lands in the *same* second bucket, after it's already been rolled up once.
+        engine.ingest(t0, [4.0], ["a"]).unwrap();
+        engine.rollup();
+
+        let minute_start = BucketLevel::Minute.truncate(t0);
+        let (_, sets) = engine
+            .bucket(BucketLevel::Minute, minute_start)
+            .unwrap()
+            .groups()
+            .next()
+            .unwrap();
+        assert_eq!(sets[0].get::<Sum<f64>>().unwrap().value(), 5.0);
+        assert_eq!(sets[0].get::<Count>().unwrap().value(), 2);
+    }
+
+    #[test]
+    fn pruning_an_already_merged_child_does_not_erase_its_contribution_upstream() {
+        let policy = Retention::new().keep(BucketLevel::Second, ChronoDuration::seconds(0));
+        let mut engine = Engine::with_retention(schema(), policy);
+        let t0 = Utc.with_ymd_and_hms(2026, 3, 15, 10, 5, 0).unwrap();
+        engine.ingest(t0, [7.0], ["a"]).unwrap();
+        engine.rollup();
+        engine.prune();
+        assert_eq!(engine.bucket_count(BucketLevel::Second), 0);
+
+        // Nothing dirty at Second anymore, so Minute is left alone rather than rebuilt from the
+        // now-empty surviving seconds.
+        engine.rollup();
+        let minute_start = BucketLevel::Minute.truncate(t0);
+        let (_, sets) = engine
+            .bucket(BucketLevel::Minute, minute_start)
+            .unwrap()
+            .groups()
+            .next()
+            .unwrap();
+        assert_eq!(sets[0].get::<Sum<f64>>().unwrap().value(), 7.0);
+    }
+
+    #[test]
+    fn day_fans_out_to_week_and_month_incrementally() {
+        let mut engine = Engine::new(schema());
+        let t0 = Utc.with_ymd_and_hms(2026, 3, 15, 10, 5, 0).unwrap();
+        engine.ingest(t0, [2.0], ["a"]).unwrap();
+        engine.rollup();
+        assert!(
+            engine
+                .bucket(BucketLevel::Week, BucketLevel::Week.truncate(t0))
+                .is_some()
+        );
+        assert!(
+            engine
+                .bucket(BucketLevel::Month, BucketLevel::Month.truncate(t0))
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn pruning_before_rollup_does_not_lose_dirty_data() {
+        let policy = Retention::new().keep(BucketLevel::Second, ChronoDuration::seconds(0));
+        let mut engine = Engine::with_retention(schema(), policy);
+        let t0 = Utc.with_ymd_and_hms(2026, 3, 15, 10, 5, 0).unwrap();
+        engine.ingest(t0, [3.0], ["a"]).unwrap();
+
+        // prune() called before rollup(): the Second bucket is still dirty, so it must survive
+        // even though it's already past its (zero-length) retention window.
+        engine.prune();
+        assert_eq!(engine.bucket_count(BucketLevel::Second), 1);
+
+        engine.rollup();
+        engine.prune();
+        // Now that it's been rolled up, prune() can safely remove it.
+        assert_eq!(engine.bucket_count(BucketLevel::Second), 0);
+
+        let minute_start = BucketLevel::Minute.truncate(t0);
+        let (_, sets) = engine
+            .bucket(BucketLevel::Minute, minute_start)
+            .unwrap()
+            .groups()
+            .next()
+            .unwrap();
+        assert_eq!(sets[0].get::<Sum<f64>>().unwrap().value(), 3.0);
     }
 }

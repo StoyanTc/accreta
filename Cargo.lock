@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "accreta"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "criterion",
@@ -31,7 +31,7 @@ dependencies = [
 
 [[package]]
 name = "accreta-metrics"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "accreta",
  "argon2",
