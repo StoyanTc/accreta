@@ -67,8 +67,10 @@ async fn main() {
 
     rollup::spawn(state.clone());
 
+    let origin = std::env::var("ACCRETA_CLIENT_ORIGIN")
+        .unwrap_or_else(|_| "http://localhost:5173".to_string());
     let cors = CorsLayer::new()
-        .allow_origin("http://localhost:5173".parse::<HeaderValue>().unwrap())
+        .allow_origin(origin.parse::<HeaderValue>().unwrap())
         .allow_methods([Method::GET, Method::POST])
         .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
 
