@@ -96,9 +96,7 @@ left as panics rather than given their own Python exception type.
   grouping/counting distinct groups — just not for printing human-readable labels without also
   tracking your own id -> string mapping on the Python side (or resolving via a separate
   lookup you maintain, since the mapping is exactly what you passed into `ingest()`).
-- Schema/dimension/measure names passed from Python are leaked (`Box::leak`) to satisfy
-  `accreta`'s `&'static str` signatures — fine for schemas built once at startup, not for
-  building schemas in a loop (see the doc comment in `src/schema.rs`).
+
 
 ## Contributing
 

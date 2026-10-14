@@ -3,6 +3,7 @@
 # ==========================================
 # Ignores the shared Rust compilation directory at the workspace root
 **/target/
+**/Cargo.lock
 
 # ==========================================
 # WebAssembly & Wasm-Pack Output

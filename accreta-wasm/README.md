@@ -101,7 +101,6 @@ If you're familiar with `accreta-node`, most of the API maps over directly. A fe
 | | `accreta-node` | `accreta-wasm` | Why |
 |---|---|---|---|
 | Nested struct results (`buckets`, `queryRange`, `queryRangeGrouped`) | Typed `#[napi(object)]` structs | `JsValue` built via `serde-wasm-bindgen` | `wasm-bindgen` has no equivalent to napi's auto-marshaled `Vec<CustomStruct>` |
-| Dimension/measure name storage | Unconditional `Box::leak` per `Engine::new` call | Interned (deduped) leak — see below | A browser tab can outlive many `Engine` rebuilds (e.g. hot-reload); Node processes are shorter-lived and this was a smaller risk there |
 | Concurrency primitive for internal caches | `Mutex`/none needed | `thread_local!` + `RefCell` | `wasm32-unknown-unknown` is single-threaded by default (no SharedArrayBuffer/threads proposal) |
 | Errors | `napi::Error` | `wasm_bindgen::JsError` | Native to each binding generator |
 

@@ -390,9 +390,6 @@ endpoint shapes alone:
 - `TDigest::Aggregator::Input` is `f64` unconditionally, so schema-building and value-extraction
   dispatch (`dispatch.rs`) use separate f64/i64/u64 code paths rather than one generic function —
   a generic function that mentions `TDigest` won't compile for `T = i64`.
-- Schema/measure/dimension names arriving as JSON `String`s are `Box::leak`'d into `&'static str`
-  once, at schema-creation time, to satisfy `accreta::SchemaBuilder`'s API — sound here because v1
-  schema creation is one-shot per process (`POST /schema` 409s on a second call).
 - `dispatch::parse_level` is the single source of truth for bucket-level name strings, shared by
   `POST /schema/query`'s `level` field and `POST /schema`'s `retention` keys, so the two endpoints
   can never silently diverge on which level names are valid.

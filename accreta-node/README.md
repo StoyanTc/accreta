@@ -112,10 +112,6 @@ See `examples/basic_usage.js` for a full walkthrough (ports the Rust `basic_usag
 
 ## Implementation notes worth knowing before you touch this
 
-- **Names must be `'static`.** `accreta`'s `SchemaBuilder::dimension`/`measure` take `&'static
-  str`. Since JS gives us owned `String`s, the constructor `Box::leak`s each dimension/measure
-  name once. This is a small, one-time leak at schema-build time, not a per-request leak — don't
-  call `new Engine(...)` in a hot loop.
 - **Dimension-value strings are resolved via a mirrored dictionary.** `accreta::Engine` doesn't
   expose its internal `DimensionDictionary` publicly, so there's no built-in way to turn a stored
   `DimensionValueId` back into the original string. This wrapper keeps its own `Vec<Vec<String>>`

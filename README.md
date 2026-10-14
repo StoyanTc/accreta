@@ -32,6 +32,7 @@ and version — see the table below for links and install instructions.
 | [`accreta-py`](./accreta-py) | Python | PyPI | [Getting started](./accreta-py/README.md#getting-started) |
 | [`accreta-java`](./accreta-java) | Java | — | [Getting started](./accreta-java/README.md#getting-started) |
 | [`accreta-metrics`](./accreta-metrics) | Rust | — | [Getting started](./accreta-metrics/README.md#getting-started) |
+| [`accreta-gui`] | (./accreta-gui) | Svelte 5 + D3 dashboard | npm |  [Getting started](./accreta-gui/README.md) |
 | `accreta-go` | Go | — | planned |
 
 ## Development
