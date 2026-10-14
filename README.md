@@ -23,16 +23,16 @@ and version — see the table below for links and install instructions.
 
 ## Packages
 
-| Package | Language | Package manager | Version |
+| Package | Language | Package manager | Getting started |
 |---|---|---|---|
-| [`accreta`](./accreta) | Rust | [crates.io](https://crates.io/crates/accreta) | see crate |
-| [`accreta-ffi`](./accreta-ffi) | C ABI | — | see crate |
-| [`accreta-node`](./accreta-node) | Node.js | npm | see package |
-| [`accreta-wasm`](./accreta-wasm) | WebAssembly | npm | see package |
-| [`accreta-py`](./accreta-py) | Python | PyPI | see package |
-| [`accreta-java`](./accreta-java) | Java | — | see package |
-| [`accreta-metrics`](./accreta-metrics) | Rust | — | see package |
-| [`accreta-go`](./accreta-go) | Go | — | planned |
+| [`accreta`](./accreta) | Rust | [crates.io](https://crates.io/crates/accreta) | [Getting started](./accreta/README.md#getting-started) |
+| [`accreta-ffi`](./accreta-ffi) | C ABI | — | [Getting started](./accreta-ffi/README.md#getting-started) |
+| [`accreta-node`](./accreta-node) | Node.js | npm | [Getting started](./accreta-node/README.md#getting-started) |
+| [`accreta-wasm`](./accreta-wasm) | WebAssembly | npm | [Getting started](./accreta-wasm/README.md#getting-started) |
+| [`accreta-py`](./accreta-py) | Python | PyPI | [Getting started](./accreta-py/README.md#getting-started) |
+| [`accreta-java`](./accreta-java) | Java | — | [Getting started](./accreta-java/README.md#getting-started) |
+| [`accreta-metrics`](./accreta-metrics) | Rust | — | [Getting started](./accreta-metrics/README.md#getting-started) |
+| `accreta-go` | Go | — | planned |
 
 ## Development
 
