@@ -30,10 +30,7 @@
 //!                                                                      +--merge--> month buckets --merge--> year buckets
 //! ```
 //!
-//! See [`BucketLevel::rollup_targets`] for the exact, authoritative fan-out at each level, and
-//! [`BucketLevel::parent`] for the (different!) notion of which level a bucket's *default*
-//! parent is — the two aren't the same thing for `day`, so don't assume `parent()` tells you
-//! everywhere a level's data ends up.
+//! See [`BucketLevel::rollup_targets`] for the exact, authoritative fan-out at each level.
 //!
 //! Raw [`Sample`]s are only ever folded into the finest ([`BucketLevel::Second`])
 //! buckets. Every coarser bucket is derived *exclusively* by merging finer buckets — the engine

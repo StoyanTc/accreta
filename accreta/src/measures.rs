@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 use crate::erased::AggregateFactory;
 
@@ -133,7 +133,7 @@ pub struct MeasureDefinition {
     /// The measure's identifier within the schema.
     pub id: MeasureId,
     /// The measure's display name.
-    pub name: &'static str,
+    pub name: Arc<str>,
     /// The numeric type of values sampled for this measure.
     pub data_type: MeasureType,
     /// The aggregators configured to run over this measure.

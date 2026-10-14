@@ -1,6 +1,6 @@
 [package]
 name = "accreta-node"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2024"
 description = "Node.js bindings for accreta, a mergeable-state aggregation engine with hierarchical time-series rollups"
 license = "MIT OR Apache-2.0"
@@ -28,7 +28,3 @@ napi-derive = "2"
 
 [build-dependencies]
 napi-build = "2"
-
-[profile.release]
-lto = true
-strip = "symbols"

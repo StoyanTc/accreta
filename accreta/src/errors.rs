@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use thiserror::Error;
 
 use crate::measures::{MeasureId, MeasureType};
@@ -10,7 +12,7 @@ pub enum IngestError {
     #[error("measure {id:?} ('{name}') expects {expected}, got {actual}")]
     MeasureType {
         id: MeasureId,
-        name: &'static str,
+        name: Arc<str>,
         expected: MeasureType,
         actual: MeasureType,
     },

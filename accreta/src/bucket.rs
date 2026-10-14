@@ -45,20 +45,6 @@ impl BucketLevel {
         BucketLevel::Year,
     ];
 
-    /// The next coarser level this one rolls up into, or `None` for [`BucketLevel::Year`], the
-    /// top of the hierarchy.
-    pub fn parent(self) -> Option<BucketLevel> {
-        match self {
-            BucketLevel::Second => Some(BucketLevel::Minute),
-            BucketLevel::Minute => Some(BucketLevel::Hour),
-            BucketLevel::Hour => Some(BucketLevel::Day),
-            BucketLevel::Day => Some(BucketLevel::Week),
-            BucketLevel::Week => Some(BucketLevel::Month),
-            BucketLevel::Month => Some(BucketLevel::Year),
-            BucketLevel::Year => None,
-        }
-    }
-
     pub fn rollup_targets(self) -> &'static [BucketLevel] {
         match self {
             BucketLevel::Second => &[BucketLevel::Minute],
@@ -381,13 +367,6 @@ mod tests {
         let start = Utc.with_ymd_and_hms(2026, 6, 30, 23, 0, 0).unwrap();
         let bucket = Bucket::new(BucketLevel::Day, start);
         assert_eq!(bucket.end(), BucketLevel::Day.bucket_end(start));
-    }
-
-    #[test]
-    fn parent_chain_terminates_at_year() {
-        assert_eq!(BucketLevel::Second.parent(), Some(BucketLevel::Minute));
-        assert_eq!(BucketLevel::Minute.parent(), Some(BucketLevel::Hour));
-        assert_eq!(BucketLevel::Year.parent(), None);
     }
 
     #[test]

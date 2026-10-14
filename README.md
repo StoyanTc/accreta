@@ -11,7 +11,7 @@ accreta/
 ├── accreta/           # core library — the source of truth
 ├── accreta-ffi/        # C ABI, used as the basis for the other bindings
 ├── accreta-node/        # Node.js bindings (napi-rs)
-├── accreta-wasm/        # WebAssembly bindings (planned)
+├── accreta-wasm/        # WebAssembly bindings 
 ├── accreta-py/           # Python bindings (PyO3 / maturin)
 ├── accreta-java/           # Java bindings (JNI)
 ├── accreta-metrics/         # Reference/demo tokio+axum service

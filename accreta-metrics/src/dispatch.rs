@@ -1,20 +1,19 @@
 //! Bridges the HTTP layer's runtime (string-typed) schema/query shapes onto `accreta`'s
 //! compile-time-generic API.
 //!
-//! Three things about `accreta`'s public API drive everything in this file (verified by reading
-//! `accreta` 0.1.1's source directly, not assumed from the design summary):
+//! Two things about `accreta`'s public API drive everything in this file (as of `accreta` 0.4.1):
 //!
-//! 1. `SchemaBuilder::dimension`/`measure` take `&'static str`, but our names arrive as owned
-//!    `String`s in a JSON body created once per process (v1 is one-shot: `POST /schema` is
-//!    rejected with 409 on a second call). We `Box::leak` those names once at schema-creation
-//!    time — bounded, since there is at most one schema per process for the life of v1.
-//! 2. `TDigest::Aggregator::Input = f64` unconditionally, so `MeasureBuilder<T>::with::<TDigest>()`
+//! 1. `TDigest::Aggregator::Input = f64` unconditionally, so `MeasureBuilder<T>::with::<TDigest>()`
 //!    only compiles for `T = f64`. There is no generic path that also covers `TDigest`, which is
 //!    why the three value types below get separate, explicit match arms rather than one generic
 //!    function — a generic `fn<T>` that mentions `TDigest` would fail to compile for `T = i64`.
-//! 3. `Schema` exposes measures (name, data type, registered aggregate names) but does **not**
-//!    expose dimension names — only [`accreta::Schema::dimension_count`]. Dimension names have
-//!    to be tracked separately by this service (see [`crate::state::SchemaMeta`]).
+//! 2. `SchemaBuilder` panics rather than returning `Result` on a duplicate or invalid
+//!    registration, so every request shape is validated at the string level first (see
+//!    [`validate_measure_aggregates`]) and registration assumes already-valid input.
+//!
+//! Dimension names and interned dimension values are not handled here: `accreta::Schema::dimensions`
+//! and `accreta::Engine::resolve_dimension_value` expose them directly, so the service keeps no
+//! separate copy.
 
 use accreta::aggregate_set::{MeasureBuilder, SchemaBuilder};
 use accreta::aggregates::{Count, Max, Min, Sum, TDigest};
@@ -83,15 +82,6 @@ pub fn parse_level(s: &str, field: impl Into<String>) -> Result<BucketLevel, Api
             field,
         )),
     }
-}
-
-/// Leak an owned `String` into a `&'static str`.
-///
-/// Sound to do repeatedly here only because schema creation is one-shot per process for v1 (see
-/// module docs) — this is not safe to call on a hot path or anywhere that runs more than once
-/// per tenant lifetime.
-pub fn leak(s: &str) -> &'static str {
-    Box::leak(s.to_owned().into_boxed_str())
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -206,11 +196,11 @@ fn register_u64_aggregate(mb: &mut MeasureBuilder<'_, u64>, name: &str) {
 
 /// Register one measure (already validated) onto `builder`.
 ///
-/// `name` must be `'static` — use [`leak`] on the owned request string once, at schema-creation
-/// time, before calling this.
+/// `name` is borrowed; the schema copies it into its own `Arc<str>`, so no leaking is involved
+/// and the name is freed along with the schema.
 pub fn register_measure(
     builder: &mut SchemaBuilder,
-    name: &'static str,
+    name: &str,
     value_type: ValueType,
     aggregates: &[String],
 ) {

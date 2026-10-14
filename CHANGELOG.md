@@ -2,88 +2,127 @@
 
 All notable changes to the Accreta project are documented here.
 
-## [0.4.0] - 2026-09-24
+## [0.4.1] - 2026-10-14
 
 ### Core (`accreta`)
 
+#### Added
+
+- `Schema::dimensions()`, `Schema::dimension(id)` and `Schema::dimension_ids()`, mirroring the
+  existing measure accessors. Dimension names are now readable from a built `Schema`.
+- `Engine::resolve_dimension_value(dim, id)`, which resolves an interned `DimensionValueId` back
+  to the string it was ingested as. It returns `None` for an unknown dimension or a value id the
+  engine never issued, rather than panicking.
+- Tests for both, and for `TDigest::quantile` interpolating between interior centroids and
+  being monotonic in `q`.
+
 #### Changed
 
-* `Engine::rollup()` is now incremental: only the coarser buckets whose children changed since the last call are recomputed, instead of rebuilding every level above `Second` from scratch on every call. Calling it repeatedly with nothing newly ingested is now a cheap no-op.
-* `Engine::prune()` now refuses to discard a bucket that hasn't been rolled up into its parent yet, even if it is past its retention cutoff. This is a backstop for `prune()` being called before `rollup()`; the documented `rollup()`-then-`prune()` order is unaffected.
+- **BREAKING:** `DimensionDefinition::name` and `MeasureDefinition::name` are now
+  `Arc<str>` instead of `&'static str`. Code that reads these fields by value must
+  borrow or clone them (e.g. `&def.name`, `def.name.clone()`, `&*def.name`).
+- `SchemaBuilder::dimension` and `SchemaBuilder::measure` now accept
+  `impl Into<Arc<str>>` instead of `&'static str`. Existing callers passing string
+  literals continue to compile unchanged; `String`, `&str`, `Box<str>` and
+  `Cow<str>` are now accepted as well. Passing `&String` requires `.as_str()` or
+  `.clone()`.
+- `TDigest::quantile` results differ from earlier versions for the same input (smoothly
+  interpolated instead of stepped). Code or tests that asserted on exact quantile values
+  from `0.4.0` or earlier may need updating. The extremes (`q <= 0` and `q >= 1`) are
+  unchanged and still return the exact `min` and `max`.
 
 #### Fixed
 
-* Configuring `Retention` on a non-leaf level (`Second`, `Minute`, `Hour`, `Day`, or `Month` — any level that feeds a coarser rollup) is now safe. Previously, pruning one of these levels could cause the next `rollup()` to silently recompute every coarser level from only the buckets that survived pruning, discarding already-merged history. `Week` and `Year` were always safe; this now holds for every level.
+- Schemas no longer require callers to leak memory to build a `Schema` from runtime
+  strings. Previously every language binding and the HTTP service had to call
+  `Box::leak` on each dimension and measure name, and those allocations were never
+  reclaimed, even after the `Schema` and `Engine` were dropped. Names are now owned
+  by the schema and freed with it.
+- Bindings and services no longer need to mirror the engine's dimension dictionaries or track
+  dimension names separately in order to resolve query results.
+- `TDigest::quantile` no longer returns a flat step function. For quantiles falling between
+  interior centroids, the interpolation start and end were both the left centroid's mean, so
+  every `q` inside a centroid's weight range returned that centroid's mean. Quantiles are now
+  linearly interpolated between neighbouring centroid means, with each mean placed at the
+  midpoint of its weight span, `min` anchored at the lower end and `max` at the upper end.
+  This also fixes the first and last centroids being treated asymmetrically, and a digest
+  with a single centroid could previously never return a value below its mean.
 
-#### Added
+#### Unchanged
 
-* Tests covering incremental rollup (no-op re-rolls, late updates to an already-rolled-up bucket, day fan-out to week/month), and the new prune-before-rollup backstop.
-
-### Bindings
-
-No functional changes in this release — `accreta`'s public `Engine`/`Retention` signatures are unchanged, only `rollup()`'s and `prune()`'s internal behavior. Bump the pinned `accreta` version in each binding's manifest to pick up the fix; no binding source changes are required.
-
-### Metrics (`accreta-metrics`)
-
-Released as `0.3.0`.
-
-#### Added
-
-* `POST /schema` accepts an optional `retention` field: a map of level name (`second`, `minute`, `hour`, `day`, `week`, `month`, `year`) to max-age in seconds. A level not listed is kept forever, as before. `GET /schema` echoes back whatever was configured.
-
-#### Changed
-
-* Updated the `accreta` dependency to `0.4.0` — required for the `retention` field to be safe on non-leaf levels.
-
-## [0.3.0] - 2026-09-21
-
-### Core (`accreta`)
-
-#### Added
-
-* Added support for second-level time aggregation.
-* Added support for custom second-based aggregation periods, such as 15, 30, and 45 seconds.
-* Extended time-bucket handling to support sub-minute aggregation while preserving existing larger aggregation periods.
-
-#### Changed
-
-* Updated documentation and examples for second-based aggregation.
-* Added tests covering second-level and custom-period aggregation.
+- `Aggregator::NAME` and `AggregateFactory::name()` remain `&'static str`, since
+  they come from types rather than runtime input.
 
 ### Bindings
 
-Updated the following bindings to `0.3.0`:
+Updated to `0.3.1`. Bump the pinned `accreta` version to `0.4.1` in each binding's manifest.
+`TDigest` quantile queries through `accreta-ffi`, `accreta-node`, `accreta-wasm`, `accreta-py`
+and `accreta-java` pick up the interpolation fix automatically; no binding source changes
+are required for it.
 
-* `accreta-ffi`
-* `accreta-py`
-* `accreta-node`
-* `accreta-java`
-* `accreta-wasm`
+#### `accreta-ffi`
 
-The bindings expose the new temporal-resolution functionality from `accreta` 0.3.0.
+- **Fixed:** `accreta_schema_builder_add_dimension` and `accreta_schema_builder_add_measure`
+  no longer leak the name. The C string is borrowed and copied once, only if the builder keeps
+  it. Duplicate dimensions and rejected measures (e.g. TDigest on a non-F64 measure) no longer
+  allocate.
+- **Fixed:** `accreta_schema_free` now releases all memory associated with a schema.
+- **Removed:** `leak_c_str`.
+
+#### `accreta-node`
+
+- **Fixed:** `Engine::new` no longer leaks dimension, measure, or `__tdigest_shadow__<name>`
+  names, including when construction fails partway through.
+- **Changed:** removed the mirrored dimension dictionaries (`dict_names`, `dict_lookup`) and the
+  lock-step update in `ingest`; dimension values are now resolved through
+  `accreta::Engine::resolve_dimension_value`.
+- **Changed:** removed the "one-time intentional leak" and "mirrored dictionaries" caveats from
+  the module docs. Constructing engines repeatedly is now safe.
+
+#### `accreta-wasm`
+
+- **Removed:** the `INTERNED` name table and `intern()`, which are no longer needed. Module docs
+  updated accordingly.
+
+#### `accreta-py`
+
+- **Fixed:** `SchemaBuilder.dimension()` and `SchemaBuilder.measure()` no longer leak names.
+- **Removed:** `leak_str`.
+
+#### `accreta-java`
+
+- **Fixed:** `nativeDimension` and `nativeMeasureF64` no longer leak names.
 
 ### Metrics (`accreta-metrics`)
 
-Released as `0.2.0`.
-
-#### Added
-
-* Added support for second-level metric aggregation.
-* Added support for configurable sub-minute aggregation periods.
-* Updated the dashboard/API to support finer-grained time periods.
+Released as `0.3.1`.
 
 #### Changed
 
-* Updated the `accreta` dependency to `0.3.0`.
+- Updated the `accreta` dependency to `0.4.1`.
+- Dimension names are read from `Schema::dimensions()` instead of being tracked separately in
+  `SchemaMeta`.
+- Removed `dispatch::leak`. `register_measure` now takes `&str`.
+- Updated module docs: schema names are no longer leaked, so the one-shot `POST /schema`
+  restriction is no longer a memory-safety requirement (it remains a v1 API restriction).
+- Quantile (`tdigest`) values returned by the API are now interpolated rather than stepped,
+  via the `accreta` `0.4.1` fix. Expect small differences from previous responses for the
+  same data.
 
 ---
 
-## [0.2.0] - 2026-09-15
+## [0.4.0] - 2026-09-24
 
-...
+(unchanged)
+
+## [0.3.0] - 2026-09-21
+
+(unchanged)
 
 ## [0.2.0] - 2026-09-13
 
-### Removed
+### Core (`accreta`)
+
+#### Removed
 
 - Removed the `average` aggregate. The mean can be calculated from `sum / count`.

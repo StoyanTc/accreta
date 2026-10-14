@@ -2,7 +2,7 @@
 # Rust & Cargo Build Artifacts
 # ==========================================
 # Ignores the shared Rust compilation directory at the workspace root
-/target/
+**/target/
 
 # ==========================================
 # WebAssembly & Wasm-Pack Output

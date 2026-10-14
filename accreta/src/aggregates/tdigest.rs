@@ -217,39 +217,35 @@ impl TDigest {
             return self.max;
         }
 
-        let target_weight = q * flushed.count as f64;
-        let mut cumulative = 0.0f64;
+        let c = &flushed.centroids;
+        let total = flushed.count as f64;
+        let target = q * total;
 
-        for window in flushed.centroids.windows(2) {
-            let (left, right) = (&window[0], &window[1]);
-            let left_upper = cumulative + left.weight as f64;
-            if target_weight <= left_upper {
-                // Interpolate within/around `left`'s span, falling back toward the exact min
-                // for the very first centroid.
-                let span_start = if cumulative == 0.0 {
-                    self.min
-                } else {
-                    left.mean
-                };
-                let span_end = left.mean;
-                if left_upper == cumulative {
-                    return span_end;
-                }
-                let fraction = (target_weight - cumulative) / (left_upper - cumulative);
-                return span_start + fraction * (span_end - span_start);
+        let lerp =
+            |x0: f64, y0: f64, x1: f64, y1: f64, x: f64| y0 + (x - x0) / (x1 - x0) * (y1 - y0);
+
+        // min (position 0) -> first centroid's mean
+        let first_mid = c[0].weight as f64 / 2.0;
+        if target <= first_mid {
+            return lerp(0.0, self.min, first_mid, c[0].mean, target);
+        }
+
+        // between consecutive centroid means
+        let mut cumulative = 0.0;
+        for pair in c.windows(2) {
+            let (l, r) = (&pair[0], &pair[1]);
+            let l_mid = cumulative + l.weight as f64 / 2.0;
+            let r_mid = cumulative + l.weight as f64 + r.weight as f64 / 2.0;
+            if target <= r_mid {
+                return lerp(l_mid, l.mean, r_mid, r.mean, target);
             }
-            cumulative = left_upper;
-            let _ = right; // considered on the next loop iteration as `left`
+            cumulative += l.weight as f64;
         }
 
-        // Fell through: target weight lands in (or past) the last centroid's span.
-        let last = flushed.centroids.last().expect("checked non-empty above");
-        let last_lower = flushed.count as f64 - last.weight as f64;
-        if target_weight <= last_lower {
-            return last.mean;
-        }
-        let fraction = (target_weight - last_lower) / (flushed.count as f64 - last_lower).max(1.0);
-        last.mean + fraction * (self.max - last.mean)
+        // last centroid's mean -> max (position `total`)
+        let last = c.last().expect("checked non-empty above");
+        let last_mid = total - last.weight as f64 / 2.0;
+        lerp(last_mid, last.mean, total, self.max, target)
     }
 }
 
@@ -454,5 +450,31 @@ mod tests {
         // One more update should trigger a flush given the buffer was already at capacity.
         d.update_in_place(capacity as f64);
         assert!(d.buffer.len() < capacity);
+    }
+
+    #[test]
+    fn quantile_interpolates_between_interior_centroids() {
+        let mut d = TDigest::identity();
+        for v in [10.0, 20.0, 30.0, 40.0, 50.0] {
+            d.update_in_place(v);
+        }
+        assert!(approx_eq(d.quantile(0.5), 30.0, 1e-9));
+        assert!(approx_eq(d.quantile(0.22), 16.0, 1e-9));
+        assert!(approx_eq(d.quantile(0.38), 24.0, 1e-9));
+        assert!(d.quantile(0.38) > d.quantile(0.22));
+    }
+
+    #[test]
+    fn quantile_is_monotonic() {
+        let mut d = TDigest::identity();
+        for i in 0..1000 {
+            d.update_in_place((i * i % 997) as f64);
+        }
+        let mut prev = f64::NEG_INFINITY;
+        for i in 0..=100 {
+            let v = d.quantile(i as f64 / 100.0);
+            assert!(v >= prev);
+            prev = v;
+        }
     }
 }

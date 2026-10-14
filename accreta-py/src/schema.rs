@@ -1,13 +1,5 @@
 //! `Schema` / `SchemaBuilder` wrappers.
 //!
-//! `SchemaBuilder::dimension`/`measure` take `name: &'static str` — a fine signature when names
-//! are compile-time literals, but Python strings are runtime values. We bridge that with
-//! `Box::leak`, deliberately: a `Schema` is built once, near process/interpreter startup, and
-//! lives for the lifetime of the `Engine`(s) built from it — leaking a handful of short-lived
-//! `String`s once at schema-build time is the same one-time cost `&'static str` literals would
-//! have paid anyway, just paid explicitly instead of at compile time. This is *not* safe to do
-//! on a hot path (e.g. per-request schema construction) — don't build schemas in a loop.
-//!
 //! `SchemaBuilder::measure`/`with`/`with_any` are also generic over `T`/`A` at the Rust level.
 //! Since Python passes the numeric type and the aggregate list as runtime strings, `measure()`
 //! below does the dispatch that the Rust generics would otherwise do at compile time. `Sum`,
@@ -19,10 +11,6 @@ use accreta::aggregates::{Count, Max, Min, Sum, TDigest};
 use accreta::measures::MeasureType;
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-
-fn leak_str(s: String) -> &'static str {
-    Box::leak(s.into_boxed_str())
-}
 
 #[pyclass(name = "SchemaBuilder")]
 pub struct PySchemaBuilder {
@@ -43,7 +31,7 @@ impl PySchemaBuilder {
     /// Register a dimension. Re-registering the same name is a no-op (matches the Rust API).
     fn dimension(&mut self, name: String) -> PyResult<()> {
         let builder = self.builder_mut()?;
-        builder.dimension(leak_str(name));
+        builder.dimension(name);
         Ok(())
     }
 
@@ -59,7 +47,6 @@ impl PySchemaBuilder {
     /// same conditions that panic in the Rust API.
     #[pyo3(signature = (name, dtype, aggregates))]
     fn measure(&mut self, name: String, dtype: &str, aggregates: Vec<String>) -> PyResult<()> {
-        let name = leak_str(name);
         let measure_type = parse_dtype(dtype)?;
         let builder = self.builder_mut()?;
 

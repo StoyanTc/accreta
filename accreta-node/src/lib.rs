@@ -28,8 +28,7 @@
 //!   `accreta-py`/`accreta-ffi`. Cost: one extra measure's worth of bucket storage, across the
 //!   full retention hierarchy, per `i64`/`u64` measure that uses `tdigest`.
 //! - **Dimension/measure names must be `&'static str`** in the underlying `accreta` API
-//!   (`SchemaBuilder::dimension`, `SchemaBuilder::measure`). Since JS gives us owned, runtime
-//!   `String`s, we `Box::leak` them once at schema-build time. Schemas are normally built once at
+//!   (`SchemaBuilder::dimension`, `SchemaBuilder::measure`).  Schemas are normally built once at
 //!   startup and live for the process lifetime, so this is a small, one-time, intentional leak —
 //!   not a per-request leak. Don't call `Engine::new` in a hot loop.
 //! - **`accreta::Engine` does not expose its internal dimension dictionaries.** There is no public
@@ -42,8 +41,6 @@
 //! - **Measure values cross the boundary as `f64`** (JS has no distinct integer type). For `i64`/
 //!   `u64` measures we cast on the way in and out. This is fine for realistic counts/sums; values
 //!   near or beyond 2^53 will lose precision, same as any other JS number.
-
-use std::collections::HashMap;
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
@@ -156,9 +153,6 @@ pub struct Engine {
     inner: accreta::Engine,
     dimension_names: Vec<String>,
     measure_names: Vec<String>,
-    // Mirrored dimension dictionaries — see module docs above for why these exist.
-    dict_names: Vec<Vec<String>>,
-    dict_lookup: Vec<HashMap<String, u32>>,
     // `tdigest_shadow_id[i] = Some(shadow_id)` if measure `i` requested `tdigest` while not
     // being `f64`-typed — see the module docs' "Shadow measures for cross-type tdigest" note.
     // `None` covers both "no tdigest requested" and "tdigest registered directly (f64 measure)".
@@ -183,16 +177,14 @@ impl Engine {
         let mut builder = accreta::Schema::builder();
 
         for dim in &spec.dimensions {
-            // Intentional one-time leak — see module docs.
-            let leaked: &'static str = Box::leak(dim.clone().into_boxed_str());
-            builder.dimension(leaked);
+            builder.dimension(dim.clone());
         }
 
         let mut needs_shadow = Vec::with_capacity(spec.measures.len());
         for measure in &spec.measures {
             let value_type = parse_value_type(&measure.value_type)?;
-            let leaked: &'static str = Box::leak(measure.name.clone().into_boxed_str());
-            let shadow = register_measure(&mut builder, leaked, value_type, &measure.aggregates)?;
+            let shadow =
+                register_measure(&mut builder, &measure.name, value_type, &measure.aggregates)?;
             needs_shadow.push(shadow);
         }
 
@@ -207,9 +199,7 @@ impl Engine {
         let mut next_shadow_id = spec.measures.len() as u8;
         for (idx, needs) in needs_shadow.iter().enumerate() {
             if *needs {
-                let shadow_name: &'static str = Box::leak(
-                    format!("__tdigest_shadow__{}", spec.measures[idx].name).into_boxed_str(),
-                );
+                let shadow_name = format!("__tdigest_shadow__{}", spec.measures[idx].name);
                 let mut smb = builder.measure::<f64>(shadow_name);
                 smb.with::<TDigest>();
                 tdigest_shadow_id[idx] = Some(next_shadow_id);
@@ -223,15 +213,11 @@ impl Engine {
 
         let dimension_names = spec.dimensions.clone();
         let measure_names = spec.measures.iter().map(|m| m.name.clone()).collect();
-        let dict_names = vec![Vec::new(); dimension_names.len()];
-        let dict_lookup = vec![HashMap::new(); dimension_names.len()];
 
         Ok(Self {
             inner,
             dimension_names,
             measure_names,
-            dict_names,
-            dict_lookup,
             tdigest_shadow_id,
         })
     }
@@ -269,16 +255,6 @@ impl Engine {
                 self.measure_names.len(),
                 measures.len()
             )));
-        }
-
-        // Mirror the dictionary update *before* handing off to the real engine, using the same
-        // first-seen-gets-next-id scheme, so ids stay in lockstep.
-        for (idx, value) in dimensions.iter().enumerate() {
-            if !self.dict_lookup[idx].contains_key(value) {
-                let id = self.dict_names[idx].len() as u32;
-                self.dict_lookup[idx].insert(value.clone(), id);
-                self.dict_names[idx].push(value.clone());
-            }
         }
 
         let schema = self.inner.schema().clone();
@@ -527,9 +503,9 @@ impl Engine {
     }
 
     fn resolve_one(&self, dimension_index: usize, value_id: u32) -> String {
-        self.dict_names[dimension_index]
-            .get(value_id as usize)
-            .cloned()
+        self.inner
+            .resolve_dimension_value(DimensionId(dimension_index as u8), value_id)
+            .map(str::to_owned)
             .unwrap_or_else(|| format!("<unknown:{value_id}>"))
     }
 }
@@ -584,7 +560,7 @@ fn parse_level(level: &str) -> Result<BucketLevel> {
 /// `tdigest` is registered directly on `name`, right here, with no shadow required).
 fn register_measure(
     builder: &mut accreta::SchemaBuilder,
-    name: &'static str,
+    name: &str,
     value_type: ValueType,
     aggregates: &[String],
 ) -> Result<bool> {

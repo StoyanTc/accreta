@@ -7,21 +7,6 @@
 //!
 //! ## Differences from `accreta-node`, and why
 //!
-//! - **Dimension/measure names are interned, not unconditionally leaked.** `accreta-node` calls
-//!   `Box::leak` on every name on every `Engine::new`, with no dedup — safe there under the
-//!   documented assumption that schemas are built once at process startup. That assumption is
-//!   less safe in a browser tab, which can live for hours/days and may rebuild an `Engine` on
-//!   every hot-reload cycle. `intern()` below leaks a given string at most once per WASM
-//!   instance: re-registering the same name (e.g. an identical schema rebuilt on hot-reload)
-//!   reuses the existing leak instead of allocating a fresh one. This bounds leaks by *distinct
-//!   names ever seen*, not by *`Engine`s created* — if a caller genuinely registers many distinct
-//!   names over time (not the same schema repeated), this doesn't help, and nothing here reclaims
-//!   memory when an `Engine` is dropped. Doing that properly would mean threading a non-`'static`
-//!   lifetime through `accreta::Schema`/`Engine` themselves — a change to accreta core, not this
-//!   wrapper. See project notes for the fuller discussion of that tradeoff.
-//! - **`thread_local!` + `RefCell`, not `Mutex`/`Lazy`.** `wasm32-unknown-unknown` is
-//!   single-threaded unless the threads proposal is explicitly enabled (SharedArrayBuffer +
-//!   cross-origin isolation), so there's no need for the locking a Node addon might reach for.
 //! - **Complex return shapes go through `serde` + `serde-wasm-bindgen`, not typed structs.**
 //!   napi-rs's `#[napi(object)]` auto-marshals nested `Vec<CustomStruct>` into JS objects/arrays.
 //!   `wasm-bindgen` has no equivalent for nested struct vectors, so `buckets()`, `query_range()`,
@@ -43,7 +28,6 @@
 //! and measure values crossing as `f64` — is unchanged from `accreta-node` and carries the same
 //! caveats (see the shadow-measure and precision notes inline below).
 
-use std::cell::RefCell;
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -52,31 +36,6 @@ use wasm_bindgen::prelude::*;
 use accreta::aggregates::{Count, Max, Min, Sum, TDigest};
 use accreta::measures::{MeasureId, MeasureType, MeasureValue};
 use accreta::{BucketLevel, DimensionId, DimensionMask};
-
-// ---------------------------------------------------------------------------
-// Name interning
-// ---------------------------------------------------------------------------
-
-thread_local! {
-    // Global to this WASM instance (not per-Engine), so re-registering the same name across
-    // multiple `Engine::new` calls reuses the existing leak. See module docs above.
-    static INTERNED: RefCell<HashMap<String, &'static str>> = RefCell::new(HashMap::new());
-}
-
-/// Returns a `&'static str` for `s`, leaking a new allocation only the first time this exact
-/// string is seen in this WASM instance. Bounds leaks by distinct names ever seen, not by
-/// `Engine`s created — see module docs for the limits of this approach.
-fn intern(s: &str) -> &'static str {
-    INTERNED.with(|table| {
-        let mut table = table.borrow_mut();
-        if let Some(existing) = table.get(s) {
-            return *existing;
-        }
-        let leaked: &'static str = Box::leak(s.to_string().into_boxed_str());
-        table.insert(s.to_string(), leaked);
-        leaked
-    })
-}
 
 // ---------------------------------------------------------------------------
 // JS-facing input/output shapes
@@ -212,15 +171,18 @@ impl Engine {
         let mut builder = accreta::Schema::builder();
 
         for dim in &spec.dimensions {
-            let leaked: &'static str = intern(dim);
-            builder.dimension(leaked);
+            builder.dimension(dim.clone());
         }
 
         let mut needs_shadow = Vec::with_capacity(spec.measures.len());
         for measure in &spec.measures {
             let value_type = parse_value_type(&measure.value_type)?;
-            let leaked: &'static str = intern(&measure.name);
-            let shadow = register_measure(&mut builder, leaked, value_type, &measure.aggregates)?;
+            let shadow = register_measure(
+                &mut builder,
+                &measure.name.clone(),
+                value_type,
+                &measure.aggregates,
+            )?;
             needs_shadow.push(shadow);
         }
 
@@ -233,8 +195,7 @@ impl Engine {
         let mut next_shadow_id = spec.measures.len() as u8;
         for (idx, needs) in needs_shadow.iter().enumerate() {
             if *needs {
-                let shadow_name: &'static str =
-                    intern(&format!("__tdigest_shadow__{}", spec.measures[idx].name));
+                let shadow_name: &str = &format!("__tdigest_shadow__{}", spec.measures[idx].name);
                 let mut smb = builder.measure::<f64>(shadow_name);
                 smb.with::<TDigest>();
                 tdigest_shadow_id[idx] = Some(next_shadow_id);
@@ -603,7 +564,7 @@ fn parse_level(level: &str) -> Result<BucketLevel, JsError> {
 /// because `value_type` is already `F64` (registered directly on `name`, no shadow required).
 fn register_measure(
     builder: &mut accreta::SchemaBuilder,
-    name: &'static str,
+    name: &str,
     value_type: ValueType,
     aggregates: &[String],
 ) -> Result<bool, JsError> {

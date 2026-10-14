@@ -15,7 +15,7 @@ pub struct DimensionDefinition {
     /// The dimension's identifier within the schema.
     pub id: DimensionId,
     /// The dimension's display name.
-    pub name: &'static str,
+    pub name: Arc<str>,
 }
 
 /// The schema for an [`AggregateSet`]: which named aggregates it tracks.
@@ -66,6 +66,21 @@ impl Schema {
         })
     }
 
+    /// Every dimension registered in this schema, in registration order.
+    pub fn dimensions(&self) -> impl Iterator<Item = &DimensionDefinition> {
+        self.dimensions.iter()
+    }
+
+    /// Look up the definition for `id`, or `None` if it isn't registered in this schema.
+    pub fn dimension(&self, id: DimensionId) -> Option<&DimensionDefinition> {
+        self.dimensions.get(id.0 as usize)
+    }
+
+    /// Iterates over every dimension's ID, in registration order.
+    pub fn dimension_ids(&self) -> impl Iterator<Item = DimensionId> + '_ {
+        (0..self.dimensions.len()).map(|i| DimensionId(i as u8))
+    }
+
     /// The number of dimensions registered in this schema.
     pub fn dimension_count(&self) -> usize {
         self.dimensions.len()
@@ -100,7 +115,8 @@ impl SchemaBuilder {
     ///
     /// Panics if more than 64 dimensions have already been registered — a
     /// dimension mask can only represent 64 dimensions.
-    pub fn dimension(&mut self, name: &'static str) -> &mut Self {
+    pub fn dimension(&mut self, name: impl Into<Arc<str>>) -> &mut Self {
+        let name: Arc<str> = name.into();
         if self.dimensions.iter().any(|d| d.name == name) {
             return self;
         }
@@ -123,10 +139,11 @@ impl SchemaBuilder {
     /// # Panics
     ///
     /// Panics if another measure is already registered under `name`.
-    pub fn measure<T>(&mut self, name: &'static str) -> MeasureBuilder<'_, T>
+    pub fn measure<T>(&mut self, name: impl Into<Arc<str>>) -> MeasureBuilder<'_, T>
     where
         T: MeasureNumber,
     {
+        let name = name.into();
         let id = MeasureId(self.measures.len() as u8);
 
         assert!(
@@ -372,6 +389,26 @@ mod tests {
             .with::<Sum<f64>>()
             .with_any::<Count>();
         builder.build().unwrap()
+    }
+
+    #[test]
+    fn dimensions_are_exposed_in_registration_order() {
+        let mut builder = Schema::builder();
+        builder
+            .dimension("browser")
+            .dimension("os")
+            .measure::<u64>("visits")
+            .with_any::<Count>();
+        let schema = builder.build().unwrap();
+
+        let names: Vec<_> = schema.dimensions().map(|d| d.name.clone()).collect();
+        assert_eq!(names, [Arc::from("browser"), Arc::from("os")]);
+        assert_eq!(
+            schema.dimension(DimensionId(1)).unwrap().name,
+            Arc::from("os")
+        );
+        assert!(schema.dimension(DimensionId(2)).is_none());
+        assert_eq!(schema.dimension_ids().count(), 2);
     }
 
     #[test]

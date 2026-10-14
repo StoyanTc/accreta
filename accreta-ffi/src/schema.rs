@@ -27,20 +27,18 @@ pub struct AccretaSchema(pub(crate) Schema);
 
 /// Converts a C string into a Rust `&'static str` by leaking its backing allocation.
 ///
-/// `accreta::aggregate_set::Schema` requires `&'static str` for dimension and measure names (see
+/// `accreta::aggregate_set::Schema` requires `impl Into<str>` for dimension and measure names (see
 /// `SchemaBuilder::dimension` / `SchemaBuilder::measure`) — schemas are normally built once,
 /// early, and kept for a process's whole lifetime, so leaking the (small, one-time) name strings
 /// here is the standard, deliberate trade-off for a stable C ABI rather than a bug.
-unsafe fn leak_c_str(s: *const c_char) -> Result<&'static str, AccretaStatus> {
+unsafe fn leak_c_str(s: *const c_char) -> Result<String, AccretaStatus> {
     if s.is_null() {
         return Err(fail(AccretaStatus::NullPointer, "name pointer is null"));
     }
-    let cstr = unsafe { CStr::from_ptr(s) };
-    let owned = cstr
+    unsafe { CStr::from_ptr(s) }
         .to_str()
-        .map_err(|_| fail(AccretaStatus::InvalidUtf8, "name is not valid UTF-8"))?
-        .to_owned();
-    Ok(Box::leak(owned.into_boxed_str()))
+        .map(str::to_owned)
+        .map_err(|_| fail(AccretaStatus::InvalidUtf8, "name is not valid UTF-8"))
 }
 
 /// Creates a new, empty schema builder.
@@ -97,11 +95,7 @@ pub unsafe extern "C" fn accreta_schema_builder_add_dimension(
     })
 }
 
-fn register_measure_i64(
-    builder: &mut SchemaBuilder,
-    name: &'static str,
-    kinds: &[AccretaAggregateKind],
-) {
+fn register_measure_i64(builder: &mut SchemaBuilder, name: &str, kinds: &[AccretaAggregateKind]) {
     let mut measure = builder.measure::<i64>(name);
     for kind in kinds {
         match kind {
@@ -127,11 +121,7 @@ fn register_measure_i64(
     }
 }
 
-fn register_measure_u64(
-    builder: &mut SchemaBuilder,
-    name: &'static str,
-    kinds: &[AccretaAggregateKind],
-) {
+fn register_measure_u64(builder: &mut SchemaBuilder, name: &str, kinds: &[AccretaAggregateKind]) {
     let mut measure = builder.measure::<u64>(name);
     for kind in kinds {
         match kind {
@@ -155,11 +145,7 @@ fn register_measure_u64(
     }
 }
 
-fn register_measure_f64(
-    builder: &mut SchemaBuilder,
-    name: &'static str,
-    kinds: &[AccretaAggregateKind],
-) {
+fn register_measure_f64(builder: &mut SchemaBuilder, name: &str, kinds: &[AccretaAggregateKind]) {
     let mut measure = builder.measure::<f64>(name);
     for kind in kinds {
         match kind {
@@ -243,9 +229,9 @@ pub unsafe extern "C" fn accreta_schema_builder_add_measure(
         }
 
         match measure_type {
-            AccretaMeasureType::I64 => register_measure_i64(&mut builder.0, name, kinds),
-            AccretaMeasureType::U64 => register_measure_u64(&mut builder.0, name, kinds),
-            AccretaMeasureType::F64 => register_measure_f64(&mut builder.0, name, kinds),
+            AccretaMeasureType::I64 => register_measure_i64(&mut builder.0, name.as_str(), kinds),
+            AccretaMeasureType::U64 => register_measure_u64(&mut builder.0, name.as_str(), kinds),
+            AccretaMeasureType::F64 => register_measure_f64(&mut builder.0, name.as_str(), kinds),
         }
 
         AccretaStatus::Ok

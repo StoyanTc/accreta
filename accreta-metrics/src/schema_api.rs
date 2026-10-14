@@ -116,13 +116,12 @@ fn build_engine_state(req: SchemaRequest) -> EngineState {
     let mut builder = accreta::Schema::builder();
 
     for d in &req.dimensions {
-        builder.dimension(dispatch::leak(d));
+        builder.dimension(d.clone());
     }
 
     let mut measure_meta = Vec::with_capacity(req.measures.len());
     for m in &req.measures {
-        let leaked_name = dispatch::leak(&m.name);
-        dispatch::register_measure(&mut builder, leaked_name, m.value_type, &m.aggregates);
+        dispatch::register_measure(&mut builder, &m.name, m.value_type, &m.aggregates);
         measure_meta.push(MeasureMeta {
             name: m.name.clone(),
             value_type: m.value_type,

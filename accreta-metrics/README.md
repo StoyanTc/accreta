@@ -399,8 +399,6 @@ endpoint shapes alone:
 
 ## Still open (per the design summary, not addressed here)
 
-- Late/out-of-order ingest past a retention-pruned bucket.
-- A health-check endpoint.
 - Persistence (explicitly deferred to v2).
 
 

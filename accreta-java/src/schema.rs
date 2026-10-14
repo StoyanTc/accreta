@@ -46,8 +46,6 @@ pub extern "system" fn Java_com_accreta_SchemaBuilder_nativeDimension(
         .get_string(&name)
         .expect("dimension name is not a valid UTF-8 Java string")
         .into();
-    let name: &'static str = Box::leak(name.into_boxed_str());
-
     let builder: &mut SchemaBuilder = unsafe { borrow_mut(handle) };
     builder.dimension(name);
 }
@@ -63,7 +61,6 @@ pub extern "system" fn Java_com_accreta_SchemaBuilder_nativeMeasureF64(
         .get_string(&name)
         .expect("measure name is not a valid UTF-8 Java string")
         .into();
-    let name: &'static str = Box::leak(name.into_boxed_str());
 
     let builder: &mut SchemaBuilder = unsafe { borrow_mut(handle) };
     let measure_builder: MeasureBuilder<'_, f64> = builder.measure::<f64>(name);
